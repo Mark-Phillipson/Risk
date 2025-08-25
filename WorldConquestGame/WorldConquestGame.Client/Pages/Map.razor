@@ -4,7 +4,6 @@
 @inject WorldConquestGame.Client.Services.GameService GameService
 
 <div class="map-page">
-    <h3>World Map</h3>
     <div id="map" class="map"></div>
 
     <!-- Render QuestionPanel locally on the map page for visibility -->
@@ -26,10 +25,10 @@
     [JSInvokable]
     public Task OnCountryClicked(string id)
     {
-    // id will be code or name from GeoJSON properties
-    Console.WriteLine($"Map.OnCountryClicked called with id={id}");
-    GameService.RaiseCountryClicked(id);
-    return Task.CompletedTask;
+        // id will be code or name from GeoJSON properties
+        Console.WriteLine($"Map.OnCountryClicked called with id={id}");
+        GameService.RaiseCountryClicked(id);
+        return Task.CompletedTask;
     }
 
     public void Dispose()
