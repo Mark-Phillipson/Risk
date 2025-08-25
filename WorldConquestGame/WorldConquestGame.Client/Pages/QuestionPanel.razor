@@ -1,11 +1,48 @@
+@using Microsoft.AspNetCore.Components.Web
 @inject WorldConquestGame.Client.Services.GameService GameService
 @inject IJSRuntime JS
 @inject WorldConquestGame.Client.Services.CountryService CountryService
 @implements IDisposable
 
-<div class="question-panel" style="display:@(Visible ? "block" : "none"); position:fixed; top:1rem; right:1rem; z-index:2000; background:#fff; padding:1rem; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:240px;">
+<style>
+    @@keyframes qc-shake {
+        0% { transform: translateX(0); }
+        20% { transform: translateX(-8px); }
+        40% { transform: translateX(8px); }
+        60% { transform: translateX(-6px); }
+        80% { transform: translateX(6px); }
+        100% { transform: translateX(0); }
+    }
+    .question-panel.shake {
+        animation: qc-shake 0.6s ease-in-out;
+    }
+    .incorrect-msg {
+        color: #a94442;
+        background: #f2dede;
+        border: 1px solid #ebcccc;
+        padding: 0.25rem 0.5rem;
+        margin-top: 0.5rem;
+        border-radius: 3px;
+        font-size: 0.9rem;
+    }
+    .toast {
+        position: fixed;
+        right: 1rem;
+        top: 1rem;
+        z-index: 3000;
+        padding: 0.5rem 0.75rem;
+        border-radius: 4px;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        font-weight: 600;
+    }
+    .toast-success { background: #28a745; }
+    .toast-error { background: #dc3545; }
+</style>
+
+<div class="question-panel @( _shake ? "shake" : string.Empty)" style="display:@(Visible ? "block" : "none"); position:fixed; top:1rem; right:1rem; z-index:2000; background:#fff; padding:1rem; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:240px;">
     <h4>@CurrentQuestion?.Text</h4>
-    <input @bind="Answer" placeholder="Your Answer" />
+    <input id="answerInput" @bind="Answer" placeholder="Your Answer" @onkeydown="OnAnswerKeyDown" />
     @if (!_showAddCustom)
     {
         <div style="margin-top:0.5rem; font-size:0.9rem; color:#666;">Don't see the right question? <a href="#" @onclick="(()=>_showAddCustom=true)">Add custom</a></div>
@@ -25,7 +62,16 @@
         <button class="btn btn-primary" @onclick="SubmitAnswer">Submit</button>
         <button class="btn btn-secondary" style="margin-left:0.5rem;" @onclick="Close">Close</button>
     </div>
+    @if (_showIncorrect)
+    {
+        <div class="incorrect-msg">Incorrect — try again.</div>
+    }
 </div>
+
+@if (_toastVisible)
+{
+    <div class="toast @( _toastType == "success" ? "toast-success" : "toast-error")">@_toastMessage</div>
+}
 
 @code {
     private Question? CurrentQuestion;
@@ -48,6 +94,11 @@
     private bool _showAddCustom = false;
     private string CustomQuestionText = string.Empty;
     private string CustomQuestionAnswer = string.Empty;
+    private bool _shake = false;
+    private bool _showIncorrect = false;
+    private bool _toastVisible = false;
+    private string _toastMessage = string.Empty;
+    private string _toastType = "success"; // "success" or "error"
 
     protected override void OnInitialized()
     {
@@ -76,10 +127,8 @@
 
     private async void OnCountryClicked(string id)
     {
-        // Log to browser console for easier debugging
-        await JS.InvokeVoidAsync("console.log", $"QuestionPanel: received id={id}");
-        // Temporary visible alert to confirm the panel handler runs
-        await JS.InvokeVoidAsync("alert", $"QuestionPanel received: {id}");
+    // Log to browser console for easier debugging
+    await JS.InvokeVoidAsync("console.log", $"QuestionPanel: received id={id}");
         if (string.IsNullOrEmpty(id)) return;
 
         // Ensure countries are loaded (in case OnInitializedAsync did not complete yet)
@@ -119,27 +168,128 @@
             CurrentQuestion = new Question { Text = $"No question for {id}", Answer = string.Empty };
         }
 
-        Answer = string.Empty;
-        Visible = true;
-        InvokeAsync(StateHasChanged);
-        _lastCountryId = id;
+        // If we auto-generated a question we prefill Answer with the known capital.
+        // Only clear the input when we did not prefill (so the user can submit the known capital).
+        if (!_isAutoQuestion)
+        {
+            Answer = string.Empty;
+        }
+
+    Visible = true;
+    await InvokeAsync(StateHasChanged);
+    _lastCountryId = id;
+
+    // move keyboard focus into the answer input for immediate typing
+    try { await JS.InvokeVoidAsync("mapInterop.focusElement", "answerInput"); } catch { }
     }
 
-    private void SubmitAnswer()
+    private async Task SubmitAnswer()
     {
-        if (!string.IsNullOrEmpty(CurrentQuestion?.Answer) && string.Equals(Answer, CurrentQuestion?.Answer, StringComparison.OrdinalIgnoreCase))
+        var expected = CurrentQuestion?.Answer ?? string.Empty;
+        // If the question didn't include an answer (capitals sometimes missing),
+        // try looking up the capital from our cached country data.
+        if (string.IsNullOrEmpty(expected) && !string.IsNullOrEmpty(_lastCountryId) && _countryByKey.ContainsKey(_lastCountryId))
+        {
+            expected = _countryByKey[_lastCountryId].Capital ?? string.Empty;
+        }
+
+        // If still empty, try fetching the capital live from the country service by code
+        if (string.IsNullOrEmpty(expected) && !string.IsNullOrEmpty(_lastCountryId))
+        {
+            try
+            {
+                var live = await CountryService.GetCapitalByCodeAsync(_lastCountryId);
+                if (!string.IsNullOrEmpty(live)) expected = live;
+            }
+            catch { }
+        }
+
+        // normalize answers: remove punctuation, collapse whitespace, compare case-insensitive
+        static string Normalize(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return string.Empty;
+            var sb = new System.Text.StringBuilder();
+            foreach (var ch in s)
+            {
+                if (char.IsLetterOrDigit(ch) || char.IsWhiteSpace(ch)) sb.Append(ch);
+            }
+            return System.Text.RegularExpressions.Regex.Replace(sb.ToString(), "\\s+", " ").Trim().ToLowerInvariant();
+        }
+
+        var normExpected = Normalize(expected);
+        var normAnswer = Normalize(Answer ?? string.Empty);
+
+        if (!string.IsNullOrEmpty(normExpected) && string.Equals(normAnswer, normExpected, StringComparison.Ordinal))
         {
             // Update game state: mark conquered
             if (!string.IsNullOrEmpty(_lastCountryId))
             {
                 // inform GameService
                 GameService.RaiseCountryConquered(_lastCountryId);
-                // call JS to change map styling
-                _ = JS.InvokeVoidAsync("mapInterop.setCountryConquered", _lastCountryId, "#ffcc00");
-            }
-            Visible = false;
+
+                // Try multiple ids when calling the map interop because GeoJSON feature ids
+                // may be different (alpha3 code vs name). Build a candidate list and ask JS
+                // which one it was able to find.
+                var candidates = new List<string> { _lastCountryId };
+                if (_countryByKey.ContainsKey(_lastCountryId))
+                {
+                    var c = _countryByKey[_lastCountryId];
+                    if (!string.IsNullOrEmpty(c.Code) && !candidates.Contains(c.Code)) candidates.Add(c.Code);
+                    if (!string.IsNullOrEmpty(c.Name) && !candidates.Contains(c.Name)) candidates.Add(c.Name);
+                }
+
+                try
+                {
+                    var matched = await JS.InvokeAsync<string?>("mapInterop.setCountryConqueredAny", candidates.ToArray(), "#ffcc00");
+                    await JS.InvokeVoidAsync("console.log", $"QuestionPanel: mapInterop matched id={matched} for candidates={string.Join(',', candidates)}");
+                }
+                catch (JSException jsEx)
+                {
+                    // fallback to single-call if any exception occurs
+                    await JS.InvokeVoidAsync("console.error", "mapInterop.setCountryConqueredAny failed", jsEx.Message);
+                    await JS.InvokeVoidAsync("mapInterop.setCountryConquered", _lastCountryId, "#ffcc00");
+                }
+                }
+                Visible = false;
+
+                // Show success toast briefly
+                _toastMessage = $"Conquered {(_countryByKey.ContainsKey(_lastCountryId) ? _countryByKey[_lastCountryId].Name : _lastCountryId)}";
+                _toastType = "success";
+                _toastVisible = true;
+                _ = Task.Run(async () => { await Task.Delay(1200); _toastVisible = false; await InvokeAsync(StateHasChanged); });
         }
+        else
+        {
+            // Log helpful info to the browser console for debugging
+            await JS.InvokeVoidAsync("console.log", $"QuestionPanel: submit failed - expected='{expected}' user='{Answer}'");
+
+            _showIncorrect = true;
+            _shake = true;
+            await InvokeAsync(StateHasChanged);
+
+            // show error toast
+            _toastMessage = "Incorrect answer";
+            _toastType = "error";
+            _toastVisible = true;
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(700);
+                _shake = false;
+                _showIncorrect = false;
+                _toastVisible = false;
+                await InvokeAsync(StateHasChanged);
+            });
+        }
+
         Answer = string.Empty;
+    }
+
+    private async Task OnAnswerKeyDown(KeyboardEventArgs e)
+    {
+        if (e is not null && (e.Key == "Enter" || e.Code == "Enter"))
+        {
+            await SubmitAnswer();
+        }
     }
 
     private void AddCustomQuestion()
@@ -172,17 +322,7 @@
         Visible = true;
     }
 
-    private void MarkConquered()
-    {
-        if (!string.IsNullOrEmpty(_lastCountryId))
-        {
-            GameService.RaiseCountryConquered(_lastCountryId);
-            _ = JS.InvokeVoidAsync("mapInterop.setCountryConquered", _lastCountryId, "#ffcc00");
-        }
-        Visible = false;
-        _isAutoQuestion = false;
-        Answer = string.Empty;
-    }
+    // MarkConquered removed: manual conquest button removed to rely on answers only.
 
     private void Close()
     {

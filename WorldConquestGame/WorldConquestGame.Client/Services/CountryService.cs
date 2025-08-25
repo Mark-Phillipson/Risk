@@ -117,4 +117,26 @@ public class CountryService
             return new List<Country>();
         }
     }
+
+    // Try to fetch a capital for a single alpha code (e.g. "RUS"). Returns empty string on failure.
+    public async Task<string> GetCapitalByCodeAsync(string code)
+    {
+        if (string.IsNullOrEmpty(code)) return string.Empty;
+        try
+        {
+            // Use restcountries alpha lookup for a single code
+            var endpoint = $"https://restcountries.com/v3.1/alpha?codes={code}";
+            var resp = await _http.GetFromJsonAsync<List<JsonElement>>(endpoint);
+            if (resp != null && resp.Count > 0)
+            {
+                var item = resp[0];
+                if (item.TryGetProperty("capital", out var cap) && cap.ValueKind == JsonValueKind.Array && cap.GetArrayLength() > 0)
+                {
+                    return cap[0].GetString() ?? string.Empty;
+                }
+            }
+        }
+        catch { }
+        return string.Empty;
+    }
 }

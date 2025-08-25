@@ -34,6 +34,16 @@ public class GameService
 
     public void RaiseCountryConquered(string id)
     {
+        // Mark in-memory model as conquered by current player if countries are loaded
+        if (!string.IsNullOrEmpty(id) && Players != null && Players.Count > 0)
+        {
+            try
+            {
+                ConquerCountry(id, CurrentPlayer);
+            }
+            catch { /* ignore failures - this is best-effort */ }
+        }
+
         CountryConquered?.Invoke(id);
     }
 }

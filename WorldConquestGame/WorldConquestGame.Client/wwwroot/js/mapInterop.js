@@ -74,4 +74,33 @@ window.mapInterop = {
             }
         } catch (e) { console.error('mapInterop.setCountryConquered error', e); }
     }
+
+    , setCountryConqueredAny: function (ids, color) {
+        try {
+            if (!ids) return null;
+            for (var i = 0; i < ids.length; i++) {
+                var id = ids[i];
+                if (!id) continue;
+                var layer = window.mapInterop._layersById[id];
+                if (layer) {
+                    layer.setStyle({ color: '#222', weight: 1, fillColor: (color || '#ffcc00'), fillOpacity: 0.6 });
+                    if (layer.bindTooltip) {
+                        layer.bindTooltip('Conquered').openTooltip();
+                    }
+                    console.log('mapInterop: conquered layer for', id);
+                    return id; // return the id that matched
+                }
+            }
+            console.warn('mapInterop: no layer found for any of', ids);
+            return null;
+        } catch (e) { console.error('mapInterop.setCountryConqueredAny error', e); return null; }
+    }
+
+    , focusElement: function (id) {
+        try {
+            if (!id) return;
+            var el = document.getElementById(id);
+            if (el && el.focus) el.focus();
+        } catch (e) { console.error('mapInterop.focusElement error', e); }
+    }
 };
