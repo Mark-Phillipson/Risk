@@ -3,11 +3,13 @@
 @inject IJSRuntime JS
 @inject WorldConquestGame.Client.Services.GameService GameService
 
-<h3>World Map</h3>
-<div id="map" style="height:600px;"></div>
+<div class="map-page">
+    <h3>World Map</h3>
+    <div id="map" class="map"></div>
 
-<!-- Render QuestionPanel locally on the map page for visibility -->
-<QuestionPanel />
+    <!-- Render QuestionPanel locally on the map page for visibility -->
+    <QuestionPanel />
+</div>
 
 @code {
     private DotNetObjectReference<Map>? objRef;

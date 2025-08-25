@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "WorldConquestGame.Client",
   "resources": {
-    "hash": "sha256-SoMcaWaZfjsi7bZ+srr7EfvknF5NUkFc1eV9KYG/E68=",
+    "hash": "sha256-bLLgsHl/AT21xEe8aQ2vtXHvi2H0gLFgp6+FBbYFE4w=",
     "fingerprinting": {
       "Microsoft.AspNetCore.Authorization.tnyc7xpluy.wasm": "Microsoft.AspNetCore.Authorization.wasm",
       "Microsoft.AspNetCore.Components.t32damlu4o.wasm": "Microsoft.AspNetCore.Components.wasm",
@@ -201,10 +201,10 @@
       "icudt_CJK.tjcz0u77k5.dat": "icudt_CJK.dat",
       "icudt_EFIGS.tptq2av103.dat": "icudt_EFIGS.dat",
       "icudt_no_CJK.lfu7j35m59.dat": "icudt_no_CJK.dat",
-      "WorldConquestGame.Shared.f6msr0fsoi.wasm": "WorldConquestGame.Shared.wasm",
-      "WorldConquestGame.Shared.dwmq37c30e.pdb": "WorldConquestGame.Shared.pdb",
-      "WorldConquestGame.Client.f8ises3ctl.wasm": "WorldConquestGame.Client.wasm",
-      "WorldConquestGame.Client.9mfogbgtu7.pdb": "WorldConquestGame.Client.pdb"
+      "WorldConquestGame.Shared.xbp0hdpj10.wasm": "WorldConquestGame.Shared.wasm",
+      "WorldConquestGame.Shared.xa59tbnyr3.pdb": "WorldConquestGame.Shared.pdb",
+      "WorldConquestGame.Client.rv0xqdemiy.wasm": "WorldConquestGame.Client.wasm",
+      "WorldConquestGame.Client.84bth1hhfm.pdb": "WorldConquestGame.Client.pdb"
     },
     "jsModuleNative": {
       "dotnet.native.50iqa8w3ys.js": "sha256-pQdXuxfVeqYHOwd5HUM2ERd7OnXirj9JTF37b6OdTAc="
@@ -414,12 +414,12 @@
       "WindowsBase.361km0836k.wasm": "sha256-FacUCEIJYTnbOWgX/R9QP2QnurqRZwRIkDAH0N9z69s=",
       "mscorlib.qiu3j3msqk.wasm": "sha256-QvztpxTOEw4aMIl7zP3QtsPLNv/IWaK5wq22J4ReGrA=",
       "netstandard.lp03u0xxi4.wasm": "sha256-WVQsxULiAiEbyXLKolS7txnWVT82SsvsuMe4jJ+SqqI=",
-      "WorldConquestGame.Shared.f6msr0fsoi.wasm": "sha256-ubWG/r08rMiB2ZkZZtHX5UCvDpDtJAxvWwlHxj1tDR4=",
-      "WorldConquestGame.Client.f8ises3ctl.wasm": "sha256-scbhGQMpM/yCJcYOcJ0kGZCKswAe77icEi8ws7iVAGk="
+      "WorldConquestGame.Shared.xbp0hdpj10.wasm": "sha256-PdUW23dCfU1hbnX3L+SL8PxcPjsuIvwzAp8BAsYeOXM=",
+      "WorldConquestGame.Client.rv0xqdemiy.wasm": "sha256-t5CSD5Q15qZMHJQn1TsZWJpEg49EqxMCgQ7m8ZEg47k="
     },
     "pdb": {
-      "WorldConquestGame.Shared.dwmq37c30e.pdb": "sha256-kyruvy5n/zHDwwqpfxJqKrfjyP8q6poKSEPQAYmMzDI=",
-      "WorldConquestGame.Client.9mfogbgtu7.pdb": "sha256-EcGo+MSSub5qmRLE5VEcqDV6yYpeesC12yH4IXqBNU0="
+      "WorldConquestGame.Shared.xa59tbnyr3.pdb": "sha256-Gbz40nOhCb1JaP9XEg64wM6qm0ILumfH5Xo6G9AYedY=",
+      "WorldConquestGame.Client.84bth1hhfm.pdb": "sha256-iIIsDs0xh6xTx5kICyNgsptAQ1e96+GamtE6XGjKm/c="
     }
   },
   "cacheBootResources": true,

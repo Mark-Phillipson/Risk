@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("WorldConquestGame.Client")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0d9e9ca5a65b55ca474fa4aae384028acea22c1a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+427f99dec7a12a5cc54082293683a1ae46c2ae53")]
 [assembly: System.Reflection.AssemblyProductAttribute("WorldConquestGame.Client")]
 [assembly: System.Reflection.AssemblyTitleAttribute("WorldConquestGame.Client")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

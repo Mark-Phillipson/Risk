@@ -40,10 +40,6 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = UGFnZXNcSW5kZXgucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
-[C:/Users/MPhil/source/repos/Risk/WorldConquestGame/WorldConquestGame.Client/Pages/Map.razor]
-build_metadata.AdditionalFiles.TargetPath = UGFnZXNcTWFwLnJhem9y
-build_metadata.AdditionalFiles.CssScope = 
-
 [C:/Users/MPhil/source/repos/Risk/WorldConquestGame/WorldConquestGame.Client/Pages/QuestionPanel.razor]
 build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUXVlc3Rpb25QYW5lbC5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
@@ -79,3 +75,7 @@ build_metadata.AdditionalFiles.CssScope = b-coz0xnc6i2
 [C:/Users/MPhil/source/repos/Risk/WorldConquestGame/WorldConquestGame.Client/Layout/NavMenu.razor]
 build_metadata.AdditionalFiles.TargetPath = TGF5b3V0XE5hdk1lbnUucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = b-e39p6asvy3
+
+[C:/Users/MPhil/source/repos/Risk/WorldConquestGame/WorldConquestGame.Client/Pages/Map.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcTWFwLnJhem9y
+build_metadata.AdditionalFiles.CssScope = b-4ogf0kzmlg
