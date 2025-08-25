@@ -647,11 +647,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\WorldConquestGame.Server.csproj",
+      "projectUniqueName": "C:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\WorldConquestGame.Server.csproj",
       "projectName": "WorldConquestGame.Server",
-      "projectPath": "c:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\WorldConquestGame.Server.csproj",
+      "projectPath": "C:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\WorldConquestGame.Server.csproj",
       "packagesPath": "C:\\Users\\MPhil\\.nuget\\packages\\",
-      "outputPath": "c:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\obj\\",
+      "outputPath": "C:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -673,8 +673,8 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "projectReferences": {
-            "c:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Shared\\WorldConquestGame.Shared.csproj": {
-              "projectPath": "c:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Shared\\WorldConquestGame.Shared.csproj"
+            "C:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Shared\\WorldConquestGame.Shared.csproj": {
+              "projectPath": "C:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Shared\\WorldConquestGame.Shared.csproj"
             }
           }
         }
