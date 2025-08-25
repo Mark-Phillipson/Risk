@@ -39,3 +39,11 @@ Desktop.ini
 # Backup & temp
 *~
 ~$*
+
+# Ignore specific working files modified during active development
+# These are local edits that should not be committed
+WorldConquestGame/WorldConquestGame.Client/Pages/QuestionPanel.razor
+WorldConquestGame/WorldConquestGame.Client/wwwroot/css/app.css
+WorldConquestGame/WorldConquestGame.Client/wwwroot/js/mapInterop.js
+WorldConquestGame/WorldConquestGame.Client/Pages/Map.razor
+WorldConquestGame/WorldConquestGame.Client/Services/GameService.cs
