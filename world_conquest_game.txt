@@ -1,0 +1,162 @@
+WorldConquestGame/  (Blazor .NET 9 Solution)
+
+├── WorldConquestGame.sln
+├── WorldConquestGame.Client/      # Blazor WebAssembly frontend
+│   ├── Program.cs
+│   ├── wwwroot/
+│   │   ├── index.html
+│   │   ├── css/app.css
+│   │   ├── js/mapInterop.js       # JS interop for Leaflet
+│   │   └── data/countries.geojson   # Map boundaries
+│   ├── Shared/
+│   │   ├── MainLayout.razor
+│   │   └── NavMenu.razor
+│   ├── Pages/
+│   │   ├── Index.razor             # Game entry page
+│   │   ├── Map.razor               # Interactive map component
+│   │   ├── QuestionPanel.razor     # Quiz panel
+│   │   └── Scoreboard.razor        # Player progress
+│   ├── Services/
+│   │   ├── CountryService.cs       # Fetch country data (GeoJSON + metadata)
+│   │   ├── GameService.cs          # Game state + rules
+│   │   └── StorageService.cs       # Local storage for game state
+│   └── GameEngine.cs               # Core gameplay logic
+│
+├── WorldConquestGame.Shared/      # Shared DTOs and models
+│   ├── Models/
+│   │   ├── Country.cs              # Country data model
+│   │   ├── Player.cs               # Player data model
+│   │   └── Question.cs             # Quiz question model
+│
+└── WorldConquestGame.Server/      # (Optional backend, future)
+    ├── Controllers/
+    │   └── LeaderboardController.cs
+    └── Data/GameDbContext.cs
+
+
+// Program.cs (Client)
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using WorldConquestGame.Client;
+using WorldConquestGame.Client.Services;
+
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.RootComponents.Add<App>("#app");
+
+builder.Services.AddScoped<CountryService>();
+builder.Services.AddScoped<GameService>();
+builder.Services.AddScoped<StorageService>();
+
+await builder.Build().RunAsync();
+
+
+// Country.cs (Shared/Models)
+namespace WorldConquestGame.Shared.Models;
+
+public class Country
+{
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string Capital { get; set; } = string.Empty;
+    public string Region { get; set; } = string.Empty;
+    public string FlagUrl { get; set; } = string.Empty;
+    public bool IsConquered { get; set; } = false;
+    public string? Owner { get; set; } = null;
+}
+
+
+// Map.razor (Pages)
+@page "/map"
+@inject IJSRuntime JS
+
+<h3>World Map</h3>
+<div id="map" style="height:600px;"></div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("mapInterop.initMap", "map", "data/countries.geojson");
+        }
+    }
+}
+
+
+// QuestionPanel.razor (Pages)
+<div class="question-panel">
+    <h4>@CurrentQuestion?.Text</h4>
+    <input @bind="Answer" placeholder="Your Answer" />
+    <button @onclick="SubmitAnswer">Submit</button>
+</div>
+
+@code {
+    private Question? CurrentQuestion;
+    private string Answer = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        CurrentQuestion = new Question { Text = "What is the capital of France?", Answer = "Paris" };
+    }
+
+    private void SubmitAnswer()
+    {
+        if (string.Equals(Answer, CurrentQuestion?.Answer, StringComparison.OrdinalIgnoreCase))
+        {
+            // TODO: update game state
+        }
+        Answer = string.Empty;
+    }
+}
+
+
+// GameEngine.cs
+using WorldConquestGame.Shared.Models;
+
+namespace WorldConquestGame.Client;
+
+public class GameEngine
+{
+    public List<Player> Players { get; set; } = new();
+    public List<Country> Countries { get; set; } = new();
+
+    public Player CurrentPlayer => Players[TurnIndex % Players.Count];
+    private int TurnIndex = 0;
+
+    public void NextTurn() => TurnIndex++;
+
+    public void ConquerCountry(string countryCode, Player player)
+    {
+        var country = Countries.FirstOrDefault(c => c.Code == countryCode);
+        if (country != null)
+        {
+            country.Owner = player.Name;
+            country.IsConquered = true;
+        }
+    }
+}
+
+
+// wwwroot/js/mapInterop.js
+window.mapInterop = {
+    initMap: function (elementId, geoJsonPath) {
+        var map = L.map(elementId).setView([20, 0], 2);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        fetch(geoJsonPath)
+            .then(response => response.json())
+            .then(data => {
+                L.geoJSON(data, {
+                    style: { color: "#333", weight: 1, fillOpacity: 0.2 },
+                    onEachFeature: function (feature, layer) {
+                        layer.on('click', function () {
+                            alert("Country clicked: " + feature.properties.name);
+                        });
+                    }
+                }).addTo(map);
+            });
+    }
+};

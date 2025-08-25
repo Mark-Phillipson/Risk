@@ -1,0 +1,33 @@
+@page "/map"
+@inject IJSRuntime JS
+@inject WorldConquestGame.Client.Services.GameService GameService
+
+<h3>World Map</h3>
+<div id="map" style="height:600px;"></div>
+
+@code {
+    private DotNetObjectReference<Map>? objRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            objRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("mapInterop.initMap", "map", "data/countries.geojson", objRef);
+        }
+    }
+
+    [JSInvokable]
+    public Task OnCountryClicked(string id)
+    {
+    // id will be code or name from GeoJSON properties
+    Console.WriteLine($"Map.OnCountryClicked called with id={id}");
+    GameService.RaiseCountryClicked(id);
+    return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        objRef?.Dispose();
+    }
+}

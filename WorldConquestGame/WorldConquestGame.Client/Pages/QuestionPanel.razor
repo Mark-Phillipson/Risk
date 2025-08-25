@@ -1,0 +1,69 @@
+@inject WorldConquestGame.Client.Services.GameService GameService
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="question-panel" style="display:@(Visible ? "block" : "none"); position:fixed; top:1rem; right:1rem; z-index:2000; background:#fff; padding:1rem; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:240px;">
+    <h4>@CurrentQuestion?.Text</h4>
+    <input @bind="Answer" placeholder="Your Answer" />
+    <div style="margin-top:0.5rem;">
+        <button class="btn btn-primary" @onclick="SubmitAnswer">Submit</button>
+        <button class="btn btn-secondary" style="margin-left:0.5rem;" @onclick="Close">Close</button>
+    </div>
+</div>
+
+@code {
+    private Question? CurrentQuestion;
+    private string Answer = string.Empty;
+    private bool Visible = false;
+
+    private readonly Dictionary<string, Question> _questions = new()
+    {
+        { "SL", new Question { Text = "What is the capital of Sampleland?", Answer = "Sample City" } },
+        { "Sampleland", new Question { Text = "What is the capital of Sampleland?", Answer = "Sample City" } }
+    };
+
+    protected override void OnInitialized()
+    {
+        GameService.CountryClicked += OnCountryClicked;
+    }
+
+    private async void OnCountryClicked(string id)
+    {
+        // Log to browser console for easier debugging
+        await JS.InvokeVoidAsync("console.log", $"QuestionPanel: received id={id}");
+        // Temporary visible alert to confirm the panel handler runs
+        await JS.InvokeVoidAsync("alert", $"QuestionPanel received: {id}");
+        if (string.IsNullOrEmpty(id)) return;
+        if (_questions.TryGetValue(id, out var q))
+        {
+            CurrentQuestion = q;
+        }
+        else
+        {
+            CurrentQuestion = new Question { Text = $"No question for {id}", Answer = string.Empty };
+        }
+        Answer = string.Empty;
+        Visible = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void SubmitAnswer()
+    {
+        if (!string.IsNullOrEmpty(CurrentQuestion?.Answer) && string.Equals(Answer, CurrentQuestion?.Answer, StringComparison.OrdinalIgnoreCase))
+        {
+            // Update game state: TODO
+            Visible = false;
+        }
+        Answer = string.Empty;
+    }
+
+    private void Close()
+    {
+        Visible = false;
+    }
+
+    public void Dispose()
+    {
+        GameService.CountryClicked -= OnCountryClicked;
+    }
+}
