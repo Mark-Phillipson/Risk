@@ -34,3 +34,4 @@ c:\Users\MPhil\source\repos\Risk\WorldConquestGame\WorldConquestGame.Server\obj\
 c:\Users\MPhil\source\repos\Risk\WorldConquestGame\WorldConquestGame.Server\obj\Debug\net9.0\WorldConquestGame.Server.pdb
 c:\Users\MPhil\source\repos\Risk\WorldConquestGame\WorldConquestGame.Server\obj\Debug\net9.0\WorldConquestGame.Server.genruntimeconfig.cache
 c:\Users\MPhil\source\repos\Risk\WorldConquestGame\WorldConquestGame.Server\obj\Debug\net9.0\ref\WorldConquestGame.Server.dll
+c:\Users\MPhil\source\repos\Risk\WorldConquestGame\WorldConquestGame.Server\obj\Debug\net9.0\WorldConquestGame.Server.sourcelink.json

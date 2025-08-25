@@ -9,3 +9,4 @@ c:\Users\MPhil\source\repos\Risk\WorldConquestGame\WorldConquestGame.Shared\obj\
 c:\Users\MPhil\source\repos\Risk\WorldConquestGame\WorldConquestGame.Shared\obj\Debug\net9.0\refint\WorldConquestGame.Shared.dll
 c:\Users\MPhil\source\repos\Risk\WorldConquestGame\WorldConquestGame.Shared\obj\Debug\net9.0\WorldConquestGame.Shared.pdb
 c:\Users\MPhil\source\repos\Risk\WorldConquestGame\WorldConquestGame.Shared\obj\Debug\net9.0\ref\WorldConquestGame.Shared.dll
+c:\Users\MPhil\source\repos\Risk\WorldConquestGame\WorldConquestGame.Shared\obj\Debug\net9.0\WorldConquestGame.Shared.sourcelink.json
