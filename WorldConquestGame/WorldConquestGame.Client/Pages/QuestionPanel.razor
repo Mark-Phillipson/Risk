@@ -1,10 +1,26 @@
 @inject WorldConquestGame.Client.Services.GameService GameService
 @inject IJSRuntime JS
+@inject WorldConquestGame.Client.Services.CountryService CountryService
 @implements IDisposable
 
 <div class="question-panel" style="display:@(Visible ? "block" : "none"); position:fixed; top:1rem; right:1rem; z-index:2000; background:#fff; padding:1rem; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:240px;">
     <h4>@CurrentQuestion?.Text</h4>
     <input @bind="Answer" placeholder="Your Answer" />
+    @if (!_showAddCustom)
+    {
+        <div style="margin-top:0.5rem; font-size:0.9rem; color:#666;">Don't see the right question? <a href="#" @onclick="(()=>_showAddCustom=true)">Add custom</a></div>
+    }
+    else
+    {
+        <div style="margin-top:0.5rem;">
+            <input placeholder="Custom question" @bind="CustomQuestionText" style="width:100%; margin-bottom:0.25rem;" />
+            <input placeholder="Answer" @bind="CustomQuestionAnswer" style="width:100%; margin-bottom:0.25rem;" />
+            <div>
+                <button class="btn btn-success" @onclick="AddCustomQuestion">Save Question</button>
+                <button class="btn btn-link" style="margin-left:0.5rem;" @onclick="(()=>_showAddCustom=false)">Cancel</button>
+            </div>
+        </div>
+    }
     <div style="margin-top:0.5rem;">
         <button class="btn btn-primary" @onclick="SubmitAnswer">Submit</button>
         <button class="btn btn-secondary" style="margin-left:0.5rem;" @onclick="Close">Close</button>
@@ -15,6 +31,7 @@
     private Question? CurrentQuestion;
     private string Answer = string.Empty;
     private bool Visible = false;
+    private string? _lastCountryId;
 
     private readonly Dictionary<string, Question> _questions = new()
     {
@@ -22,9 +39,39 @@
         { "Sampleland", new Question { Text = "What is the capital of Sampleland?", Answer = "Sample City" } }
     };
 
+    // cache country lookups loaded from the geojson
+    private Dictionary<string, string> _codeToName = new();
+    private Dictionary<string, WorldConquestGame.Shared.Models.Country> _countryByKey = new();
+
+    private bool _countriesLoaded = false;
+    private bool _isAutoQuestion = false;
+    private bool _showAddCustom = false;
+    private string CustomQuestionText = string.Empty;
+    private string CustomQuestionAnswer = string.Empty;
+
     protected override void OnInitialized()
     {
         GameService.CountryClicked += OnCountryClicked;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // preload countries once
+        var countries = await CountryService.GetAllAsync();
+        foreach (var c in countries)
+        {
+            if (!string.IsNullOrEmpty(c.Code) && !_codeToName.ContainsKey(c.Code))
+            {
+                _codeToName[c.Code] = c.Name ?? string.Empty;
+                if (!_countryByKey.ContainsKey(c.Code)) _countryByKey[c.Code] = c;
+            }
+            if (!string.IsNullOrEmpty(c.Name) && !_codeToName.ContainsKey(c.Name))
+            {
+                _codeToName[c.Name] = c.Name;
+                if (!_countryByKey.ContainsKey(c.Name)) _countryByKey[c.Name] = c;
+            }
+        }
+        _countriesLoaded = true;
     }
 
     private async void OnCountryClicked(string id)
@@ -34,26 +81,106 @@
         // Temporary visible alert to confirm the panel handler runs
         await JS.InvokeVoidAsync("alert", $"QuestionPanel received: {id}");
         if (string.IsNullOrEmpty(id)) return;
+
+        // Ensure countries are loaded (in case OnInitializedAsync did not complete yet)
+        if (!_countriesLoaded)
+        {
+            var countries = await CountryService.GetAllAsync();
+            foreach (var c in countries)
+            {
+                if (!string.IsNullOrEmpty(c.Code) && !_codeToName.ContainsKey(c.Code)) _codeToName[c.Code] = c.Name ?? string.Empty;
+                if (!string.IsNullOrEmpty(c.Name) && !_codeToName.ContainsKey(c.Name)) _codeToName[c.Name] = c.Name;
+            }
+            _countriesLoaded = true;
+        }
+
+        // Try question lookup by code first, then by resolved name
+        _isAutoQuestion = false;
         if (_questions.TryGetValue(id, out var q))
         {
             CurrentQuestion = q;
+        }
+        else if (_codeToName.TryGetValue(id, out var resolvedName) && _questions.TryGetValue(resolvedName, out var q2))
+        {
+            CurrentQuestion = q2;
+        }
+        else if (_codeToName.TryGetValue(id, out var resolvedName2))
+        {
+            // auto-generate a placeholder question for this country so the panel isn't empty
+            var country = _countryByKey.ContainsKey(id) ? _countryByKey[id] : (_countryByKey.ContainsKey(resolvedName2) ? _countryByKey[resolvedName2] : null);
+            var capital = country?.Capital ?? string.Empty;
+            CurrentQuestion = new Question { Text = $"What is the capital of {resolvedName2}?", Answer = capital };
+            _isAutoQuestion = true;
+            // prefill answer input with known capital (so Submit works if correct)
+            Answer = capital;
         }
         else
         {
             CurrentQuestion = new Question { Text = $"No question for {id}", Answer = string.Empty };
         }
+
         Answer = string.Empty;
         Visible = true;
         InvokeAsync(StateHasChanged);
+        _lastCountryId = id;
     }
 
     private void SubmitAnswer()
     {
         if (!string.IsNullOrEmpty(CurrentQuestion?.Answer) && string.Equals(Answer, CurrentQuestion?.Answer, StringComparison.OrdinalIgnoreCase))
         {
-            // Update game state: TODO
+            // Update game state: mark conquered
+            if (!string.IsNullOrEmpty(_lastCountryId))
+            {
+                // inform GameService
+                GameService.RaiseCountryConquered(_lastCountryId);
+                // call JS to change map styling
+                _ = JS.InvokeVoidAsync("mapInterop.setCountryConquered", _lastCountryId, "#ffcc00");
+            }
             Visible = false;
         }
+        Answer = string.Empty;
+    }
+
+    private void AddCustomQuestion()
+    {
+        if (string.IsNullOrEmpty(_lastCountryId)) return;
+
+        var key = _lastCountryId;
+        // prefer using the country's code as key if available
+        if (_countryByKey.ContainsKey(_lastCountryId) && !string.IsNullOrEmpty(_countryByKey[_lastCountryId].Code))
+        {
+            key = _countryByKey[_lastCountryId].Code;
+        }
+
+        var q = new Question { Text = string.IsNullOrWhiteSpace(CustomQuestionText) ? ($"Custom question for {key}") : CustomQuestionText, Answer = CustomQuestionAnswer ?? string.Empty };
+        // store under both code and name where possible
+        _questions[key] = q;
+        if (_countryByKey.ContainsKey(key))
+        {
+            var name = _countryByKey[key].Name;
+            if (!string.IsNullOrEmpty(name)) _questions[name] = q;
+        }
+
+        // set as current
+        CurrentQuestion = q;
+        _isAutoQuestion = false;
+        _showAddCustom = false;
+        CustomQuestionText = string.Empty;
+        CustomQuestionAnswer = string.Empty;
+        Answer = string.Empty;
+        Visible = true;
+    }
+
+    private void MarkConquered()
+    {
+        if (!string.IsNullOrEmpty(_lastCountryId))
+        {
+            GameService.RaiseCountryConquered(_lastCountryId);
+            _ = JS.InvokeVoidAsync("mapInterop.setCountryConquered", _lastCountryId, "#ffcc00");
+        }
+        Visible = false;
+        _isAutoQuestion = false;
         Answer = string.Empty;
     }
 

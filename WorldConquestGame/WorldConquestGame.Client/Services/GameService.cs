@@ -9,6 +9,8 @@ public class GameService
 
     // Event raised when a country is clicked on the map
     public event Action<string>? CountryClicked;
+    // Event raised when a country is conquered
+    public event Action<string>? CountryConquered;
 
     private int TurnIndex = 0;
     public Player CurrentPlayer => Players[TurnIndex % Players.Count];
@@ -28,5 +30,10 @@ public class GameService
     public void RaiseCountryClicked(string id)
     {
         CountryClicked?.Invoke(id);
+    }
+
+    public void RaiseCountryConquered(string id)
+    {
+        CountryConquered?.Invoke(id);
     }
 }

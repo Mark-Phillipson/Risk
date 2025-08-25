@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\WorldConquestGame.Server.csproj": {}
+    "c:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\WorldConquestGame.Server.csproj": {}
   },
   "projects": {
-    "C:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\WorldConquestGame.Server.csproj": {
+    "c:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\WorldConquestGame.Server.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\WorldConquestGame.Server.csproj",
+        "projectUniqueName": "c:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\WorldConquestGame.Server.csproj",
         "projectName": "WorldConquestGame.Server",
-        "projectPath": "C:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\WorldConquestGame.Server.csproj",
+        "projectPath": "c:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\WorldConquestGame.Server.csproj",
         "packagesPath": "C:\\Users\\MPhil\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\obj\\",
+        "outputPath": "c:\\Users\\MPhil\\source\\repos\\Risk\\WorldConquestGame\\WorldConquestGame.Server\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
