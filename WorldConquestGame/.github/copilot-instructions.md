@@ -17,6 +17,7 @@
 - **Run Server**: Use `dotnet run --project WorldConquestGame.Server`.
 - **Debug**: Launch profiles are in `Properties/launchSettings.json` for both client and server.
 - **Frontend Hot Reload**: Supported via Blazor WASM tooling.
+ - **Terminal in-use note**: If the terminal you're using already has the application running (for example via `dotnet watch run` or `dotnet run`), shut down that terminal or stop the running process (Ctrl+C) before attempting to relaunch; leaving the app running can cause port/process-in-use errors when you try to start a new instance.
 
 ## Conventions & Patterns
 
