@@ -39,7 +39,14 @@ window.mapInterop = {
                             // Fallback order: feature.id -> properties.iso_a3 -> properties.code -> properties.name
                             var idKey = feature.id || (feature.properties && (feature.properties.iso_a3 || feature.properties.code || feature.properties.name)) || '';
                             if (idKey) {
-                                window.mapInterop._layersById[idKey] = layer;
+                                try {
+                                    // store canonical key plus uppercase/lowercase variants to improve matching tolerance
+                                    window.mapInterop._layersById[idKey] = layer;
+                                    var up = ('' + idKey).toUpperCase();
+                                    var low = ('' + idKey).toLowerCase();
+                                    if (!window.mapInterop._layersById[up]) window.mapInterop._layersById[up] = layer;
+                                    if (!window.mapInterop._layersById[low]) window.mapInterop._layersById[low] = layer;
+                                } catch (e) { /* ignore storage failures */ }
                                 // for debugging in-browser
                                 // console.log('mapInterop: stored layer for', idKey);
                             }
@@ -68,6 +75,11 @@ window.mapInterop = {
 
                 // keep a reference
                 window.mapInterop._geoLayer = geoLayer;
+                try {
+                    // Log summary of known layer keys for debugging
+                    var keys = Object.keys(window.mapInterop._layersById || {});
+                    console.log('mapInterop: loaded geo layer, known layer keys count=', keys.length, ' sample=', keys.slice(0, 12));
+                } catch (e) { }
                 // After loading geo layer, check for any pending continent zoom request stored in sessionStorage
                 try {
                     var pending = sessionStorage.getItem('zoomToContinent');
@@ -194,15 +206,23 @@ window.mapInterop = {
         } catch (e) { console.error('mapInterop.setCountryConquered error', e); }
     }
 
-    , setCountryConqueredAny: function (ids, color) {
+    , setCountryConqueredAny: function (ids, colorOrColors) {
         try {
             if (!ids) return null;
+            var matched = [];
+            var unmatched = [];
+            // Build a color map so retries can re-use the same per-id color when applicable
+            var colorMap = {};
+            var isArrayColors = Array.isArray(colorOrColors);
             for (var i = 0; i < ids.length; i++) {
                 var id = ids[i];
                 if (!id) continue;
-                var layer = window.mapInterop._layersById[id];
+                // assign color for this id (either per-index or the single provided color)
+                try { colorMap[id] = (isArrayColors ? colorOrColors[i] : colorOrColors) || '#ffcc00'; } catch (e) { colorMap[id] = '#ffcc00'; }
+                console.log('mapInterop: trying to apply style for id', id, ' color=', colorMap[id]);
+                var layer = window.mapInterop._layersById[id] || window.mapInterop._layersById[(id || '').toUpperCase()] || window.mapInterop._layersById[(id || '').toLowerCase()];
                 if (layer) {
-                    layer.setStyle({ color: '#222', weight: 1, fillColor: (color || '#ffcc00'), fillOpacity: 0.6 });
+                    layer.setStyle({ color: '#222', weight: 1, fillColor: (colorMap[id] || '#ffcc00'), fillOpacity: 0.6 });
                     try {
                         var name = (layer.feature && layer.feature.properties && (layer.feature.properties.name || layer.feature.properties.NAME || layer.feature.properties.ADMIN || layer.feature.properties.admin)) || id;
                         var map = window.mapInterop._map;
@@ -224,12 +244,57 @@ window.mapInterop = {
                             if (layer.bindTooltip) layer.bindTooltip(name, { permanent: true, direction: 'center', className: 'country-label' }).openTooltip();
                         }
                     } catch (e) { console.warn('mapInterop: failed to bind name tooltip', e); }
-                    console.log('mapInterop: conquered layer for', id);
-                    return id; // return the id that matched
+                    console.log('mapInterop: conquered layer for', id, ' color=', colorMap[id]);
+                    matched.push(id);
+                } else {
+                    unmatched.push(id);
                 }
             }
-            console.warn('mapInterop: no layer found for any of', ids);
-            return null;
+            if (matched.length) {
+                console.log('mapInterop: matched ids', matched);
+            }
+            if (unmatched.length) {
+                console.warn('mapInterop: unmatched ids (first pass)', unmatched);
+                // try some heuristics immediately: trimmed and replace multiple spaces
+                var stillUnmatched = [];
+                for (var j = 0; j < unmatched.length; j++) {
+                    var orig = unmatched[j];
+                    var candidates = [orig, (orig || '').trim(), (orig || '').replace(/\s+/g, ' '), (orig || '').toUpperCase(), (orig || '').toLowerCase()];
+                    var found = false;
+                    for (var k = 0; k < candidates.length; k++) {
+                        var cand = candidates[k];
+                        var lay = window.mapInterop._layersById[cand];
+                        if (lay) { found = true; break; }
+                    }
+                    if (!found) stillUnmatched.push(orig);
+                }
+                if (stillUnmatched.length) {
+                    // schedule a retry after a short delay in case layers are registered slightly later
+                    setTimeout(function (toTry) {
+                        try {
+                            for (var ii = 0; ii < toTry.length; ii++) {
+                                var id2 = toTry[ii];
+                                var layer2 = window.mapInterop._layersById[id2] || window.mapInterop._layersById[(id2 || '').toUpperCase()] || window.mapInterop._layersById[(id2 || '').toLowerCase()];
+                                if (layer2) {
+                                    // re-apply style (use colorMap if available)
+                                    var c = (colorMap && colorMap[id2]) ? colorMap[id2] : (isArrayColors ? '#ffcc00' : colorOrColors || '#ffcc00');
+                                    layer2.setStyle({ color: '#222', weight: 1, fillColor: (c || '#ffcc00'), fillOpacity: 0.6 });
+                                    try {
+                                        var name2 = (layer2.feature && layer2.feature.properties && (layer2.feature.properties.name || layer2.feature.properties.NAME || layer2.feature.properties.ADMIN || layer2.feature.properties.admin)) || id2;
+                                        var map2 = window.mapInterop._map;
+                                        var center2 = null;
+                                        try { if (map2 && layer2 && layer2.getLatLngs) center2 = window.mapInterop._getLargestPolygonCenter(layer2, map2) || null; if (!center2) { if (layer2.getBounds) center2 = layer2.getBounds().getCenter(); else if (layer2.getLatLng) center2 = layer2.getLatLng(); } } catch (e) { center2 = null; }
+                                        if (map2 && center2) { try { if (window.mapInterop._labelMarkers[id2]) { map2.removeLayer(window.mapInterop._labelMarkers[id2]); } } catch (e) { } var marker2 = L.marker(center2, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name2, iconSize: null }) }).addTo(map2); window.mapInterop._labelMarkers[id2] = marker2; }
+                                        else { if (layer2.bindTooltip) layer2.bindTooltip(name2, { permanent: true, direction: 'center', className: 'country-label' }).openTooltip(); }
+                                    } catch (e) { console.warn('mapInterop: retry bind tooltip failed', e); }
+                                    console.log('mapInterop: retry applied for', id2, ' color=', (colorMap && colorMap[id2]) ? colorMap[id2] : colorOrColors);
+                                }
+                            }
+                        } catch (e) { console.error('mapInterop.retry error', e); }
+                    }, 250, stillUnmatched);
+                }
+            }
+            return { matched: matched, unmatched: unmatched };
         } catch (e) { console.error('mapInterop.setCountryConqueredAny error', e); return null; }
     }
 
@@ -239,6 +304,21 @@ window.mapInterop = {
             var el = document.getElementById(id);
             if (el && el.focus) el.focus();
         } catch (e) { console.error('mapInterop.focusElement error', e); }
+    }
+
+    // Clear all conquered styles and labels from the map
+    , clearConquered: function () {
+        try {
+            // reset style for all known layers
+            for (var id in window.mapInterop._layersById) {
+                try { var layer = window.mapInterop._layersById[id]; if (layer && layer.setStyle) layer.setStyle({ color: 'transparent', weight: 1, fillOpacity: 0 }); } catch (e) { }
+            }
+            // remove all label markers
+            for (var k in window.mapInterop._labelMarkers) {
+                try { var m = window.mapInterop._labelMarkers[k]; if (m) window.mapInterop._map.removeLayer(m); } catch (e) { }
+            }
+            window.mapInterop._labelMarkers = {};
+        } catch (e) { console.error('mapInterop.clearConquered error', e); }
     }
 
     // Zoom the map to the bounding box of all features matching the provided continent name.

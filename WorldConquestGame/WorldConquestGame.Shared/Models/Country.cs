@@ -9,4 +9,6 @@ public class Country
     public string FlagUrl { get; set; } = string.Empty;
     public bool IsConquered { get; set; } = false;
     public string? Owner { get; set; } = null;
+    // Optional color used when the country is conquered. Stored in browser localStorage.
+    public string? Color { get; set; } = null;
 }

@@ -2,6 +2,7 @@ ww@using Microsoft.AspNetCore.Components.Web
 @inject WorldConquestGame.Client.Services.GameService GameService
 @inject IJSRuntime JS
 @inject WorldConquestGame.Client.Services.CountryService CountryService
+@inject WorldConquestGame.Client.Services.StorageService StorageService
 @implements IDisposable
 
 <style>
@@ -113,7 +114,11 @@ ww@using Microsoft.AspNetCore.Components.Web
     {
         // preload countries once
         var countries = await CountryService.GetAllAsync();
-        foreach (var c in countries)
+    // populate GameService.Countries so other parts of the app can read/modify the shared model
+    try { if (countries != null && countries.Count > 0 && (GameService.Countries == null || GameService.Countries.Count == 0)) GameService.Countries = countries; } catch { }
+        if (countries != null)
+        {
+            foreach (var c in countries)
         {
             if (!string.IsNullOrEmpty(c.Code) && !_codeToName.ContainsKey(c.Code))
             {
@@ -125,6 +130,7 @@ ww@using Microsoft.AspNetCore.Components.Web
                 _codeToName[c.Name] = c.Name;
                 if (!_countryByKey.ContainsKey(c.Name)) _countryByKey[c.Name] = c;
             }
+        }
         }
         _countriesLoaded = true;
     }
@@ -248,11 +254,93 @@ ww@using Microsoft.AspNetCore.Components.Web
                     if (!string.IsNullOrEmpty(c.Name) && !candidates.Contains(c.Name)) candidates.Add(c.Name);
                 }
 
-                try
-                {
-                    var matched = await JS.InvokeAsync<string?>("mapInterop.setCountryConqueredAny", candidates.ToArray(), color);
-                    await JS.InvokeVoidAsync("console.log", $"QuestionPanel: mapInterop matched id={matched} for candidates={string.Join(',', candidates)} color={color}");
-                }
+                    try
+                    {
+                        // update in-memory model color for any matching country in the local cache
+                        if (!string.IsNullOrEmpty(_lastCountryId) && _countryByKey.ContainsKey(_lastCountryId))
+                        {
+                            var model = _countryByKey[_lastCountryId];
+                            model.IsConquered = true;
+                            model.Color = color;
+                        }
+
+                        var matched = await JS.InvokeAsync<System.Text.Json.JsonElement?>("mapInterop.setCountryConqueredAny", candidates.ToArray(), color);
+                        await JS.InvokeVoidAsync("console.log", "QuestionPanel: mapInterop matched result=", matched, $" for candidates={string.Join(',', candidates)} color={color}");
+                        // If JS returned a matched id, prefer that as the canonical code to persist
+                        try
+                        {
+                            if (matched.HasValue && matched.Value.ValueKind == System.Text.Json.JsonValueKind.Object)
+                            {
+                                if (matched.Value.TryGetProperty("matched", out var arr) && arr.ValueKind == System.Text.Json.JsonValueKind.Array && arr.GetArrayLength() > 0)
+                                {
+                                    var first = arr[0].GetString();
+                                    if (!string.IsNullOrEmpty(first))
+                                    {
+                                        // update the GameService model and local cache to use the matched id
+                                        try
+                                        {
+                                            // prefer using the GameService entry if available
+                                            var codeKey = _lastCountryId;
+                                            if (!string.IsNullOrEmpty(_lastCountryId) && _countryByKey.ContainsKey(_lastCountryId) && !string.IsNullOrEmpty(_countryByKey[_lastCountryId].Code)) codeKey = _countryByKey[_lastCountryId].Code;
+                                            var gsMatch = GameService.Countries?.FirstOrDefault(c => c.Code == codeKey || c.Name == _lastCountryId || c.Code == _lastCountryId);
+                                            if (gsMatch != null)
+                                            {
+                                                gsMatch.Code = first;
+                                            }
+                                            // update local cache entry as well
+                                            if (!string.IsNullOrEmpty(_lastCountryId) && _countryByKey.ContainsKey(_lastCountryId))
+                                            {
+                                                var local = _countryByKey[_lastCountryId];
+                                                local.Code = first;
+                                                // also index by the new code so future lookups work
+                                                if (!_countryByKey.ContainsKey(first)) _countryByKey[first] = local;
+                                            }
+                                        }
+                                        catch { }
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+
+                        // Persist countries: prefer GameService.Countries if populated, otherwise persist from local cache
+                        try
+                        {
+                            List<WorldConquestGame.Shared.Models.Country> toSave;
+                            if (GameService.Countries != null && GameService.Countries.Count > 0)
+                            {
+                                // make sure the shared model is updated too
+                                var codeKey = _lastCountryId;
+                                if (!string.IsNullOrEmpty(_lastCountryId) && _countryByKey.ContainsKey(_lastCountryId) && !string.IsNullOrEmpty(_countryByKey[_lastCountryId].Code)) codeKey = _countryByKey[_lastCountryId].Code;
+                                var gsMatch = GameService.Countries.FirstOrDefault(c => c.Code == codeKey || c.Name == _lastCountryId || c.Code == _lastCountryId);
+                                if (gsMatch != null)
+                                {
+                                    gsMatch.IsConquered = true;
+                                    gsMatch.Color = color;
+                                    if (!string.IsNullOrEmpty(CapitalAnswer)) gsMatch.Capital = CapitalAnswer;
+                                }
+                                toSave = GameService.Countries;
+                            }
+                            else
+                            {
+                                // persist minimal list from our local cache
+                                toSave = _countryByKey.Values.Select(c => new WorldConquestGame.Shared.Models.Country { Code = c.Code, Name = c.Name, IsConquered = c.IsConquered, Owner = c.Owner, Color = c.Color, Capital = c.Capital }).ToList();
+                            }
+
+                            await JS.InvokeVoidAsync("console.log", $"QuestionPanel: persisting {toSave.Count} countries to localStorage");
+                            await StorageService.SaveCountriesAsync(toSave);
+                            await JS.InvokeVoidAsync("console.log", "QuestionPanel: persist complete");
+                            // show small toast to confirm save
+                            _toastMessage = "Saved to local storage";
+                            _toastType = "success";
+                            _toastVisible = true;
+                            _ = Task.Run(async () => { await Task.Delay(900); _toastVisible = false; await InvokeAsync(StateHasChanged); });
+                        }
+                        catch (Exception saveEx)
+                        {
+                            await JS.InvokeVoidAsync("console.error", "QuestionPanel: failed to persist countries", saveEx.Message);
+                        }
+                    }
                 catch (JSException jsEx)
                 {
                     await JS.InvokeVoidAsync("console.error", "mapInterop.setCountryConqueredAny failed", jsEx.Message);
@@ -263,7 +351,7 @@ ww@using Microsoft.AspNetCore.Components.Web
             Visible = false;
 
             // Show success toast briefly with details
-            var name = (_countryByKey.ContainsKey(_lastCountryId) ? _countryByKey[_lastCountryId].Name : _lastCountryId);
+            var name = (!string.IsNullOrEmpty(_lastCountryId) && _countryByKey.ContainsKey(_lastCountryId)) ? _countryByKey[_lastCountryId].Name : (_lastCountryId ?? string.Empty);
             _toastMessage = gotCountry && gotCapital ? $"Conquered {name} (country + capital)" : (gotCountry ? $"Conquered {name} (country)" : $"Conquered {name} (capital)");
             _toastType = "success";
             _toastVisible = true;

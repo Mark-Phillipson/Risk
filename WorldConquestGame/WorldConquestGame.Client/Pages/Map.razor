@@ -2,9 +2,13 @@
 @using WorldConquestGame.Client.Pages
 @inject IJSRuntime JS
 @inject WorldConquestGame.Client.Services.GameService GameService
+@inject WorldConquestGame.Client.Services.StorageService StorageService
 
 <div class="map-page">
     <div id="map" class="map"></div>
+    <div style="position:fixed; left:1rem; top:1rem; z-index:2000;">
+        <button class="btn btn-sm btn-outline-danger" @onclick="ResetMap">Reset saved map</button>
+    </div>
 
     <!-- Render QuestionPanel locally on the map page for visibility -->
     <QuestionPanel />
@@ -19,6 +23,43 @@
         {
             objRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("mapInterop.initMap", "map", "data/countries.geojson", objRef);
+
+            // After map loads, attempt to read persisted countries and re-apply styles
+            // We wait briefly to allow the geo layer to fully register layers and centroids in JS
+            try
+            {
+                var persisted = await StorageService.LoadCountriesAsync();
+                // log what we loaded for debugging
+                await JS.InvokeVoidAsync("console.log", "Map: loaded persisted countries:", persisted == null ? 0 : persisted.Count, persisted);
+                if (persisted != null && persisted.Count > 0)
+                {
+                    // merge into in-memory model
+                    GameService.MergePersistedCountries(persisted);
+
+                    // For debugging: build detailed lists of ids and colors we'll send to JS
+                    var ids = new List<string>();
+                    var colors = new List<string>();
+                    foreach (var c in persisted.Where(p => p.IsConquered && !string.IsNullOrEmpty(p.Code)))
+                    {
+                        ids.Add(c.Code!);
+                        colors.Add(string.IsNullOrEmpty(c.Color) ? "#ffcc00" : c.Color!);
+                    }
+
+                    // Log the exact payload we will send to mapInterop
+                    await JS.InvokeVoidAsync("console.log", "Map: restoring conquered countries, ids:", ids, "colors:", colors);
+
+                    if (ids.Count > 0)
+                    {
+                        // call JS to apply styles for multiple countries — pass per-id colors array
+                        var result = await JS.InvokeAsync<object?>("mapInterop.setCountryConqueredAny", ids.ToArray(), colors.ToArray());
+                        await JS.InvokeVoidAsync("console.log", "Map: mapInterop.setCountryConqueredAny returned:", result);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                await JS.InvokeVoidAsync("console.error", "Map: failed to restore persisted countries", ex.Message);
+            }
         }
     }
 
@@ -29,6 +70,26 @@
         Console.WriteLine($"Map.OnCountryClicked called with id={id}");
         GameService.RaiseCountryClicked(id);
         return Task.CompletedTask;
+    }
+
+    private async Task ResetMap()
+    {
+        try
+        {
+            // Clear JS map visual state
+            await JS.InvokeVoidAsync("mapInterop.clearConquered");
+        }
+        catch { }
+
+        try
+        {
+            // Clear persisted storage
+            await StorageService.ClearCountriesAsync();
+        }
+        catch { }
+
+        // Optionally reload the page to reinitialize map cleanly
+        try { await JS.InvokeVoidAsync("location.reload"); } catch { }
     }
 
     public void Dispose()

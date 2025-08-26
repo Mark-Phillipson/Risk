@@ -24,6 +24,30 @@ public class GameService
         {
             country.Owner = player.Name;
             country.IsConquered = true;
+            // keep Color property untouched here; UI layer chooses color
+        }
+    }
+
+    // Merge persisted country state into the in-memory list (match by Code)
+    public void MergePersistedCountries(IEnumerable<Country> persisted)
+    {
+        if (persisted == null) return;
+        foreach (var p in persisted)
+        {
+            if (string.IsNullOrEmpty(p.Code)) continue;
+            var match = Countries.FirstOrDefault(c => string.Equals(c.Code, p.Code, StringComparison.OrdinalIgnoreCase));
+            if (match != null)
+            {
+                match.IsConquered = p.IsConquered;
+                match.Owner = p.Owner;
+                match.Color = p.Color;
+                if (!string.IsNullOrEmpty(p.Capital)) match.Capital = p.Capital;
+            }
+            else
+            {
+                // If not in list, add a minimal record so UI can apply styles by code
+                Countries.Add(new Country { Code = p.Code, IsConquered = p.IsConquered, Owner = p.Owner, Color = p.Color, Capital = p.Capital ?? string.Empty });
+            }
         }
     }
 
