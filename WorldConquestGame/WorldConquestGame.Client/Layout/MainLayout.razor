@@ -1,4 +1,7 @@
 ﻿@inherits LayoutComponentBase
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+
 <div class="page">
     @* <div class="sidebar">
         <NavMenu />
@@ -7,8 +10,44 @@
     <main>
         <div class="top-row px-4">
             <h1 class="page-title">World Conquest</h1>
-            <a href="map">Map</a>
+            <nav class="continent-buttons ms-3">
+                <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Africa")' aria-label="Zoom to Africa">Africa</button>
+                <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Europe")' aria-label="Zoom to Europe">Europe</button>
+                <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Asia")' aria-label="Zoom to Asia">Asia</button>
+                <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("North America")' aria-label="Zoom to North America">N. America</button>
+                <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("South America")' aria-label="Zoom to South America">S. America</button>
+                <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Oceania")' aria-label="Zoom to Oceania">Oceania</button>
+                <button class="btn btn-sm btn-outline-primary" @onclick='() => ZoomToContinent("Antarctica")' aria-label="Zoom to Antarctica">Antarctica</button>
+            </nav>
+            <a class="ms-3" href="map">Map</a>
         </div>
+
+        @code {
+            private async Task ZoomToContinent(string continent)
+            {
+                // If we're not already on the map page, store the requested continent in sessionStorage
+                // and navigate to /map. The map will read the pending value and apply the zoom on init.
+                var isOnMap = NavigationManager.Uri?.EndsWith("/map", StringComparison.OrdinalIgnoreCase) == true;
+                try
+                {
+                    if (isOnMap)
+                    {
+                        await JS.InvokeVoidAsync("mapInterop.zoomToContinent", continent);
+                    }
+                    else
+                    {
+                        await JS.InvokeVoidAsync("sessionStorage.setItem", "zoomToContinent", continent);
+                        NavigationManager.NavigateTo("/map");
+                    }
+                }
+                catch
+                {
+                    // Fallback: store request and navigate to map so it will be applied on init
+                    await JS.InvokeVoidAsync("sessionStorage.setItem", "zoomToContinent", continent);
+                    NavigationManager.NavigateTo("/map");
+                }
+            }
+        }
 
         <article class="content px-4">
             @Body

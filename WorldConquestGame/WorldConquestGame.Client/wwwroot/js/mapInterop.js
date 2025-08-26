@@ -68,6 +68,15 @@ window.mapInterop = {
 
                 // keep a reference
                 window.mapInterop._geoLayer = geoLayer;
+                // After loading geo layer, check for any pending continent zoom request stored in sessionStorage
+                try {
+                    var pending = sessionStorage.getItem('zoomToContinent');
+                    if (pending) {
+                        // remove it and apply
+                        sessionStorage.removeItem('zoomToContinent');
+                        window.mapInterop.zoomToContinent(pending);
+                    }
+                } catch (e) { }
             }).catch(function (err) { console.error('Failed to load geojson', err); });
     }
 
@@ -230,5 +239,53 @@ window.mapInterop = {
             var el = document.getElementById(id);
             if (el && el.focus) el.focus();
         } catch (e) { console.error('mapInterop.focusElement error', e); }
+    }
+
+    // Zoom the map to the bounding box of all features matching the provided continent name.
+    // Continent name should match a property on the features (we'll check properties.continent or properties.continent_na if present)
+    , zoomToContinent: function (continentName) {
+        try {
+            if (!window.mapInterop._geoLayer || !window.mapInterop._map || !continentName) return;
+            var layer = window.mapInterop._geoLayer;
+            var bounds = null;
+            layer.eachLayer(function (l) {
+                try {
+                    var props = l.feature && l.feature.properties ? l.feature.properties : {};
+                    var c = props.continent || props.CONTINENT || props.continent_na || props.REGION_UN || '';
+                    if (c && c.toString().toLowerCase() === continentName.toString().toLowerCase()) {
+                        try {
+                            var b = l.getBounds ? l.getBounds() : null;
+                            if (b) {
+                                if (!bounds) bounds = b;
+                                else bounds.extend(b);
+                            }
+                        } catch (e) { }
+                    }
+                } catch (e) { }
+            });
+            if (bounds) {
+                window.mapInterop._map.fitBounds(bounds, { padding: [40, 40] });
+                return true;
+            } else {
+                console.warn('mapInterop.zoomToContinent: no features found for', continentName, ' — falling back to predefined bounds');
+                // Fallback: use hardcoded approximate continent bounding boxes (LatLngBounds: [[south, west],[north, east]])
+                var lower = continentName.toString().toLowerCase();
+                var boxes = {
+                    'africa': [[-35.0, -20.0], [38.0, 52.0]],
+                    'europe': [[34.0, -25.0], [72.0, 45.0]],
+                    'asia': [[-10.0, 26.0], [80.0, 180.0]],
+                    'north america': [[5.0, -170.0], [83.0, -30.0]],
+                    'south america': [[-56.0, -82.0], [13.0, -34.0]],
+                    'oceania': [[-50.0, 110.0], [10.0, 180.0]],
+                    'antarctica': [[-90.0, -180.0], [-60.0, 180.0]]
+                };
+                if (boxes[lower]) {
+                    var b = L.latLngBounds(boxes[lower]);
+                    window.mapInterop._map.fitBounds(b, { padding: [40, 40] });
+                    return true;
+                }
+                return false;
+            }
+        } catch (e) { console.error('mapInterop.zoomToContinent error', e); return false; }
     }
 };
