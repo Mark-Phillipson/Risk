@@ -7,4 +7,3 @@ Structure:
 - WorldConquestGame.Shared: shared models
 - WorldConquestGame.Server: optional backend
 
-Next steps: run `dotnet new blazorwasm` inside the Client folder or open in Visual Studio to finish project creation.
