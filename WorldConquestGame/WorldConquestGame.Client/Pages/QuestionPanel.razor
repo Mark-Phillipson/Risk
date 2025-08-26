@@ -1,0 +1,350 @@
+ww@using Microsoft.AspNetCore.Components.Web
+@inject WorldConquestGame.Client.Services.GameService GameService
+@inject IJSRuntime JS
+@inject WorldConquestGame.Client.Services.CountryService CountryService
+@implements IDisposable
+
+<style>
+    @@keyframes qc-shake {
+        0% { transform: translateX(0); }
+        20% { transform: translateX(-8px); }
+        40% { transform: translateX(8px); }
+        60% { transform: translateX(-6px); }
+        80% { transform: translateX(6px); }
+        100% { transform: translateX(0); }
+    }
+    .question-panel.shake {
+        animation: qc-shake 0.6s ease-in-out;
+    }
+    .incorrect-msg {
+        color: #a94442;
+        background: #f2dede;
+        border: 1px solid #ebcccc;
+        padding: 0.25rem 0.5rem;
+        margin-top: 0.5rem;
+        border-radius: 3px;
+        font-size: 0.9rem;
+    }
+    .toast {
+        position: fixed;
+        right: 1rem;
+        top: 1rem;
+        z-index: 3000;
+        padding: 0.5rem 0.75rem;
+        border-radius: 4px;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        font-weight: 600;
+    }
+    .toast-success { background: #28a745; }
+    .toast-error { background: #dc3545; }
+</style>
+
+<div class="question-panel @( _shake ? "shake" : string.Empty)" style="display:@(Visible ? "block" : "none"); position:fixed; top:1rem; right:1rem; z-index:2000; background:#fff; padding:1rem; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:240px;">
+    <h4>@CurrentQuestion?.Text</h4>
+    <div style="display:flex; flex-direction:column; gap:0.35rem;">
+        <input id="countryInput" @bind="CountryAnswer" placeholder="Country name" @onkeydown="OnAnswerKeyDown" />
+        <input id="capitalInput" @bind="CapitalAnswer" placeholder="Capital (optional)" @onkeydown="OnAnswerKeyDown" />
+    </div>
+    @if (!_showAddCustom)
+    {
+        <div style="margin-top:0.5rem; font-size:0.9rem; color:#666;">Don't see the right question? <a href="#" @onclick="(()=>_showAddCustom=true)">Add custom</a></div>
+    }
+    else
+    {
+        <div style="margin-top:0.5rem;">
+            <input placeholder="Custom question" @bind="CustomQuestionText" style="width:100%; margin-bottom:0.25rem;" />
+            <input placeholder="Answer" @bind="CustomQuestionAnswer" style="width:100%; margin-bottom:0.25rem;" />
+            <div>
+                <button class="btn btn-success" @onclick="AddCustomQuestion">Save Question</button>
+                <button class="btn btn-link" style="margin-left:0.5rem;" @onclick="(()=>_showAddCustom=false)">Cancel</button>
+            </div>
+        </div>
+    }
+    <div style="margin-top:0.5rem;">
+        <button class="btn btn-primary" @onclick="SubmitAnswer">Submit</button>
+        <button class="btn btn-secondary" style="margin-left:0.5rem;" @onclick="Close">Close</button>
+    </div>
+    @if (_showIncorrect)
+    {
+        <div class="incorrect-msg">Incorrect — try again.</div>
+    }
+</div>
+
+@if (_toastVisible)
+{
+    <div class="toast @( _toastType == "success" ? "toast-success" : "toast-error")">@_toastMessage</div>
+}
+
+@code {
+    private Question? CurrentQuestion;
+    private string CountryAnswer = string.Empty;
+    private string CapitalAnswer = string.Empty;
+    private bool Visible = false;
+    private string? _lastCountryId;
+
+    private readonly Dictionary<string, Question> _questions = new()
+    {
+        { "SL", new Question { Text = "What is the capital of Sampleland?", Answer = "Sample City" } },
+        { "Sampleland", new Question { Text = "What is the capital of Sampleland?", Answer = "Sample City" } }
+    };
+
+    // cache country lookups loaded from the geojson
+    private Dictionary<string, string> _codeToName = new();
+    private Dictionary<string, WorldConquestGame.Shared.Models.Country> _countryByKey = new();
+
+    private bool _countriesLoaded = false;
+    private bool _isAutoQuestion = false;
+    private bool _showAddCustom = false;
+    private string CustomQuestionText = string.Empty;
+    private string CustomQuestionAnswer = string.Empty;
+    private bool _shake = false;
+    private bool _showIncorrect = false;
+    private bool _toastVisible = false;
+    private string _toastMessage = string.Empty;
+    private string _toastType = "success"; // "success" or "error"
+
+    protected override void OnInitialized()
+    {
+        GameService.CountryClicked += OnCountryClicked;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // preload countries once
+        var countries = await CountryService.GetAllAsync();
+        foreach (var c in countries)
+        {
+            if (!string.IsNullOrEmpty(c.Code) && !_codeToName.ContainsKey(c.Code))
+            {
+                _codeToName[c.Code] = c.Name ?? string.Empty;
+                if (!_countryByKey.ContainsKey(c.Code)) _countryByKey[c.Code] = c;
+            }
+            if (!string.IsNullOrEmpty(c.Name) && !_codeToName.ContainsKey(c.Name))
+            {
+                _codeToName[c.Name] = c.Name;
+                if (!_countryByKey.ContainsKey(c.Name)) _countryByKey[c.Name] = c;
+            }
+        }
+        _countriesLoaded = true;
+    }
+
+    private async void OnCountryClicked(string id)
+    {
+    // Log to browser console for easier debugging
+    await JS.InvokeVoidAsync("console.log", $"QuestionPanel: received id={id}");
+        if (string.IsNullOrEmpty(id)) return;
+
+        // Ensure countries are loaded (in case OnInitializedAsync did not complete yet)
+        if (!_countriesLoaded)
+        {
+            var countries = await CountryService.GetAllAsync();
+            foreach (var c in countries)
+            {
+                if (!string.IsNullOrEmpty(c.Code) && !_codeToName.ContainsKey(c.Code)) _codeToName[c.Code] = c.Name ?? string.Empty;
+                if (!string.IsNullOrEmpty(c.Name) && !_codeToName.ContainsKey(c.Name)) _codeToName[c.Name] = c.Name;
+            }
+            _countriesLoaded = true;
+        }
+
+        // Try question lookup by code first, then by resolved name
+        _isAutoQuestion = false;
+        if (_questions.TryGetValue(id, out var q))
+        {
+            CurrentQuestion = q;
+        }
+        else if (_codeToName.TryGetValue(id, out var resolvedName) && _questions.TryGetValue(resolvedName, out var q2))
+        {
+            CurrentQuestion = q2;
+        }
+        else if (_codeToName.TryGetValue(id, out var resolvedName2))
+        {
+            // auto-generate a placeholder question for this country so the panel isn't empty
+            var country = _countryByKey.ContainsKey(id) ? _countryByKey[id] : (_countryByKey.ContainsKey(resolvedName2) ? _countryByKey[resolvedName2] : null);
+            var capital = country?.Capital ?? string.Empty;
+            // ask for the country name and optionally capital
+            CurrentQuestion = new Question { Text = $"Which country is this? (optional: provide capital)", Answer = capital };
+            _isAutoQuestion = true;
+            // prefill capital input with known capital (so the user can submit capital quickly)
+            CountryAnswer = string.Empty;
+            CapitalAnswer = capital;
+        }
+        else
+        {
+            CurrentQuestion = new Question { Text = $"No question for {id}", Answer = string.Empty };
+        }
+
+        // For non-auto or custom questions, prefill the capital field if the question included an answer.
+        if (!_isAutoQuestion)
+        {
+            CountryAnswer = string.Empty;
+            CapitalAnswer = CurrentQuestion?.Answer ?? string.Empty;
+        }
+
+    Visible = true;
+    await InvokeAsync(StateHasChanged);
+    _lastCountryId = id;
+
+    // move keyboard focus into the country name input for immediate typing
+    try { await JS.InvokeVoidAsync("mapInterop.focusElement", "countryInput"); } catch { }
+    }
+
+    private async Task SubmitAnswer()
+    {
+        // Determine expected country name and capital for the last clicked country.
+        string expectedCountry = string.Empty;
+        string expectedCapital = string.Empty;
+        if (!string.IsNullOrEmpty(_lastCountryId) && _countryByKey.ContainsKey(_lastCountryId))
+        {
+            var c = _countryByKey[_lastCountryId];
+            expectedCountry = c.Name ?? string.Empty;
+            expectedCapital = c.Capital ?? string.Empty;
+        }
+        // Fallbacks
+        if (string.IsNullOrEmpty(expectedCountry) && !string.IsNullOrEmpty(_lastCountryId) && _codeToName.ContainsKey(_lastCountryId)) expectedCountry = _codeToName[_lastCountryId];
+        if (string.IsNullOrEmpty(expectedCapital) && !string.IsNullOrEmpty(CurrentQuestion?.Answer)) expectedCapital = CurrentQuestion!.Answer;
+        if (string.IsNullOrEmpty(expectedCapital) && !string.IsNullOrEmpty(_lastCountryId))
+        {
+            try { var live = await CountryService.GetCapitalByCodeAsync(_lastCountryId); if (!string.IsNullOrEmpty(live)) expectedCapital = live; } catch { }
+        }
+
+        // normalize answers: remove punctuation, collapse whitespace, compare case-insensitive
+        static string Normalize(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return string.Empty;
+            var sb = new System.Text.StringBuilder();
+            foreach (var ch in s)
+            {
+                if (char.IsLetterOrDigit(ch) || char.IsWhiteSpace(ch)) sb.Append(ch);
+            }
+            return System.Text.RegularExpressions.Regex.Replace(sb.ToString(), "\\s+", " ").Trim().ToLowerInvariant();
+        }
+        var normExpectedCountry = Normalize(expectedCountry);
+        var normExpectedCapital = Normalize(expectedCapital);
+        var normCountryAnswer = Normalize(CountryAnswer ?? string.Empty);
+        var normCapitalAnswer = Normalize(CapitalAnswer ?? string.Empty);
+
+        var gotCountry = !string.IsNullOrEmpty(normExpectedCountry) && string.Equals(normCountryAnswer, normExpectedCountry, StringComparison.Ordinal);
+        var gotCapital = !string.IsNullOrEmpty(normExpectedCapital) && string.Equals(normCapitalAnswer, normExpectedCapital, StringComparison.Ordinal);
+
+        if (gotCountry || gotCapital)
+        {
+            // Determine color: both -> green, country only -> yellow, capital only -> blue
+            string color;
+            if (gotCountry && gotCapital) color = "#28a745"; // green
+            else if (gotCountry) color = "#ffcc00"; // yellow
+            else color = "#007bff"; // blue for capital-only
+
+            // Update game state: mark conquered
+            if (!string.IsNullOrEmpty(_lastCountryId))
+            {
+                GameService.RaiseCountryConquered(_lastCountryId);
+
+                var candidates = new List<string> { _lastCountryId };
+                if (_countryByKey.ContainsKey(_lastCountryId))
+                {
+                    var c = _countryByKey[_lastCountryId];
+                    if (!string.IsNullOrEmpty(c.Code) && !candidates.Contains(c.Code)) candidates.Add(c.Code);
+                    if (!string.IsNullOrEmpty(c.Name) && !candidates.Contains(c.Name)) candidates.Add(c.Name);
+                }
+
+                try
+                {
+                    var matched = await JS.InvokeAsync<string?>("mapInterop.setCountryConqueredAny", candidates.ToArray(), color);
+                    await JS.InvokeVoidAsync("console.log", $"QuestionPanel: mapInterop matched id={matched} for candidates={string.Join(',', candidates)} color={color}");
+                }
+                catch (JSException jsEx)
+                {
+                    await JS.InvokeVoidAsync("console.error", "mapInterop.setCountryConqueredAny failed", jsEx.Message);
+                    await JS.InvokeVoidAsync("mapInterop.setCountryConquered", _lastCountryId, color);
+                }
+            }
+
+            Visible = false;
+
+            // Show success toast briefly with details
+            var name = (_countryByKey.ContainsKey(_lastCountryId) ? _countryByKey[_lastCountryId].Name : _lastCountryId);
+            _toastMessage = gotCountry && gotCapital ? $"Conquered {name} (country + capital)" : (gotCountry ? $"Conquered {name} (country)" : $"Conquered {name} (capital)");
+            _toastType = "success";
+            _toastVisible = true;
+            _ = Task.Run(async () => { await Task.Delay(1200); _toastVisible = false; await InvokeAsync(StateHasChanged); });
+        }
+        else
+        {
+            // Log helpful info to the browser console for debugging
+            await JS.InvokeVoidAsync("console.log", $"QuestionPanel: submit failed - expectedCountry='{expectedCountry}' expectedCapital='{expectedCapital}' userCountry='{CountryAnswer}' userCapital='{CapitalAnswer}'");
+
+            _showIncorrect = true;
+            _shake = true;
+            await InvokeAsync(StateHasChanged);
+
+            // show error toast
+            _toastMessage = "Incorrect answer";
+            _toastType = "error";
+            _toastVisible = true;
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(700);
+                _shake = false;
+                _showIncorrect = false;
+                _toastVisible = false;
+                await InvokeAsync(StateHasChanged);
+            });
+        }
+
+    CountryAnswer = string.Empty;
+    CapitalAnswer = string.Empty;
+    }
+
+    private async Task OnAnswerKeyDown(KeyboardEventArgs e)
+    {
+        if (e is not null && (e.Key == "Enter" || e.Code == "Enter"))
+        {
+            await SubmitAnswer();
+        }
+    }
+
+    private void AddCustomQuestion()
+    {
+        if (string.IsNullOrEmpty(_lastCountryId)) return;
+
+        var key = _lastCountryId;
+        // prefer using the country's code as key if available
+        if (_countryByKey.ContainsKey(_lastCountryId) && !string.IsNullOrEmpty(_countryByKey[_lastCountryId].Code))
+        {
+            key = _countryByKey[_lastCountryId].Code;
+        }
+
+        var q = new Question { Text = string.IsNullOrWhiteSpace(CustomQuestionText) ? ($"Custom question for {key}") : CustomQuestionText, Answer = CustomQuestionAnswer ?? string.Empty };
+        // store under both code and name where possible
+        _questions[key] = q;
+        if (_countryByKey.ContainsKey(key))
+        {
+            var name = _countryByKey[key].Name;
+            if (!string.IsNullOrEmpty(name)) _questions[name] = q;
+        }
+
+        // set as current
+        CurrentQuestion = q;
+        _isAutoQuestion = false;
+        _showAddCustom = false;
+        CustomQuestionText = string.Empty;
+        CustomQuestionAnswer = string.Empty;
+    // clear inputs
+    CountryAnswer = string.Empty;
+    CapitalAnswer = string.Empty;
+        Visible = true;
+    }
+
+    // MarkConquered removed: manual conquest button removed to rely on answers only.
+
+    private void Close()
+    {
+        Visible = false;
+    }
+
+    public void Dispose()
+    {
+        GameService.CountryClicked -= OnCountryClicked;
+    }
+}
