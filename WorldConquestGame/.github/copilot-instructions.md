@@ -19,12 +19,8 @@
 - **Frontend Hot Reload**: Supported via Blazor WASM tooling.
 
 ## Conventions & Patterns
-- **Services**: Client-side logic is organized in `Services/` (e.g., `CountryService.cs`, `GameService.cs`).
-- **Pages**: UI pages are in `Pages/` (e.g., `Map.razor`, `Scoreboard.razor`).
-- **Layout**: Shared layouts and navigation in `Layout/` and `Shared/`.
-- **Styling**: Component-specific CSS files (e.g., `Map.razor.css`) are colocated with their `.razor` files.
-- **Data**: Static data (GeoJSON, sample weather) is in `wwwroot/data/` and `wwwroot/sample-data/`.
-- **Interop**: JS interop is centralized in `wwwroot/js/mapInterop.js`.
+
+**Razor File Organization**: When a `.razor` file becomes large, split the C# code into a backend file (code-behind) to improve maintainability. Use the partial class pattern (e.g., `Map.razor.cs` for `Map.razor`).
 
 ## Integration Points
 - **Bootstrap**: UI styling via `wwwroot/lib/bootstrap/`.
