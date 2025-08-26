@@ -6,9 +6,7 @@
 
 <div class="map-page">
     <div id="map" class="map"></div>
-    <div style="position:fixed; left:1rem; top:1rem; z-index:2000;">
-        <button class="btn btn-sm btn-outline-danger" @onclick="ResetMap">Reset saved map</button>
-    </div>
+    <!-- Reset button removed from map overlay to avoid covering map controls -->
 
     <!-- Render QuestionPanel locally on the map page for visibility -->
     <QuestionPanel />
@@ -28,6 +26,20 @@
             // We wait briefly to allow the geo layer to fully register layers and centroids in JS
             try
             {
+                // Check if a reset was requested from the layout (sessionStorage.resetMap)
+                try
+                {
+                    var resetReq = await JS.InvokeAsync<string>("sessionStorage.getItem", "resetMap");
+                    if (!string.IsNullOrEmpty(resetReq))
+                    {
+                        // clear the flag and perform reset actions
+                        await JS.InvokeVoidAsync("sessionStorage.removeItem", "resetMap");
+                        await JS.InvokeVoidAsync("mapInterop.clearConquered");
+                        try { await StorageService.ClearCountriesAsync(); } catch { }
+                    }
+                }
+                catch { }
+
                 var persisted = await StorageService.LoadCountriesAsync();
                 // log what we loaded for debugging
                 await JS.InvokeVoidAsync("console.log", "Map: loaded persisted countries:", persisted == null ? 0 : persisted.Count, persisted);
@@ -91,6 +103,7 @@
         // Optionally reload the page to reinitialize map cleanly
         try { await JS.InvokeVoidAsync("location.reload"); } catch { }
     }
+
 
     public void Dispose()
     {

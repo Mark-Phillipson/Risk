@@ -17,7 +17,8 @@
                 <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("North America")' aria-label="Zoom to North America">N. America</button>
                 <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("South America")' aria-label="Zoom to South America">S. America</button>
                 <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Oceania")' aria-label="Zoom to Oceania">Oceania</button>
-                <button class="btn btn-sm btn-outline-primary" @onclick='() => ZoomToContinent("Antarctica")' aria-label="Zoom to Antarctica">Antarctica</button>
+                <button class="btn btn-sm btn-outline-primary me-2" @onclick='() => ZoomToContinent("Antarctica")' aria-label="Zoom to Antarctica">Antarctica</button>
+                <button class="btn btn-sm btn-outline-danger" @onclick="ResetAndGoToMap" aria-label="Reset saved map">Reset</button>
             </nav>
             <a class="ms-3" href="map">Map</a>
         </div>
@@ -46,6 +47,17 @@
                     await JS.InvokeVoidAsync("sessionStorage.setItem", "zoomToContinent", continent);
                     NavigationManager.NavigateTo("/map");
                 }
+            }
+
+            private async Task ResetAndGoToMap()
+            {
+                try
+                {
+                    // Request the map page to perform a reset on load
+                    await JS.InvokeVoidAsync("sessionStorage.setItem", "resetMap", "1");
+                }
+                catch { }
+                NavigationManager.NavigateTo("/map");
             }
         }
 

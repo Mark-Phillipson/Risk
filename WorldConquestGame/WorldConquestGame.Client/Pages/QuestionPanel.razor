@@ -171,9 +171,10 @@ ww@using Microsoft.AspNetCore.Components.Web
             // ask for the country name and optionally capital
             CurrentQuestion = new Question { Text = $"Which country is this? (optional: provide capital)", Answer = capital };
             _isAutoQuestion = true;
-            // prefill capital input with known capital (so the user can submit capital quickly)
+            // For auto-generated questions we intentionally leave the inputs blank
+            // so the user must type their answer (avoids surprising autofill like Spain->Madrid).
             CountryAnswer = string.Empty;
-            CapitalAnswer = capital;
+            CapitalAnswer = string.Empty;
         }
         else
         {

@@ -3,6 +3,8 @@ window.mapInterop = {
     _layersById: {},
     // store label markers for conquered countries so they persist independent of feature tooltips
     _labelMarkers: {},
+    // store connector polylines/arrow markers for offshore labels
+    _labelConnectors: {},
     // reference to the Leaflet map instance
     _map: null,
 
@@ -18,6 +20,29 @@ window.mapInterop = {
         var map = L.map(element).setView([20, 0], 2);
         // keep a reference so other functions can add markers/tooltips independent of local scope
         window.mapInterop._map = map;
+        // remember the initial view so we can reset to it via keyboard (Home / 0)
+        window.mapInterop._initialCenter = [20, 0];
+        window.mapInterop._initialZoom = 2;
+
+        // Ensure the map container is keyboard-focusable so key events can be captured.
+        try {
+            var container = map.getContainer();
+            if (container && !container.hasAttribute('tabindex')) container.setAttribute('tabindex', '0');
+            // Add a keydown listener to support Home and 0 as "reset view" keys
+            container.addEventListener('keydown', function (ev) {
+                try {
+                    var k = ev.key || ev.code || '';
+                    if (k === 'Home' || k === '0' || k === 'Numpad0') {
+                        try {
+                            if (window.mapInterop._map && window.mapInterop._initialCenter) {
+                                window.mapInterop._map.setView(window.mapInterop._initialCenter, window.mapInterop._initialZoom);
+                                ev.preventDefault();
+                            }
+                        } catch (e) { /* ignore errors */ }
+                    }
+                } catch (e) { }
+            });
+        } catch (e) { /* ignore focusability/keybinding failures */ }
 
         // Use a basemap without place labels so only our conquered-country labels are visible.
         // Carto 'light_nolabels' tiles provide a clean unlabeled background.
@@ -75,6 +100,10 @@ window.mapInterop = {
 
                 // keep a reference
                 window.mapInterop._geoLayer = geoLayer;
+                // update label visibility initially (labels hidden at default zoom)
+                try { if (window.mapInterop._updateLabelVisibility) window.mapInterop._updateLabelVisibility(); } catch (e) { }
+                // listen for zoom changes to toggle label visibility
+                try { map.on && map.on('zoomend', function () { try { if (window.mapInterop._updateLabelVisibility) window.mapInterop._updateLabelVisibility(); } catch (e) { } }); } catch (e) { }
                 try {
                     // Log summary of known layer keys for debugging
                     var keys = Object.keys(window.mapInterop._layersById || {});
@@ -165,6 +194,221 @@ window.mapInterop = {
         } catch (e) { return null; }
     }
 
+    // Helper: test whether a given LatLng is inside a layer's polygon(s)
+    , _pointInLayer: function (layer, latlng) {
+        try {
+            if (!layer || !latlng) return false;
+            var lat = latlng.lat !== undefined ? latlng.lat : (latlng[0] || null);
+            var lng = latlng.lng !== undefined ? latlng.lng : (latlng[1] || null);
+            if (lat === null || lng === null) return false;
+
+            // Normalize layer latlng arrays to array of rings (each ring is array of points {lat,lng})
+            var latlngs = layer.getLatLngs ? layer.getLatLngs() : null;
+            if (!latlngs) return false;
+
+            var polys = [];
+            // Polygon: latlngs[0] is ring of LatLngs
+            if (latlngs[0] && latlngs[0][0] && typeof latlngs[0][0].lat === 'number') {
+                polys.push(latlngs[0]);
+            } else {
+                // MultiPolygon
+                for (var i = 0; i < latlngs.length; i++) {
+                    if (latlngs[i] && latlngs[i][0] && typeof latlngs[i][0][0] !== 'undefined') {
+                        polys.push(latlngs[i][0]);
+                    }
+                }
+            }
+
+            function pointInRing(pLat, pLng, ring) {
+                var inside = false;
+                for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                    var xi = ring[i].lng, yi = ring[i].lat;
+                    var xj = ring[j].lng, yj = ring[j].lat;
+                    var intersect = ((yi > pLat) != (yj > pLat)) && (pLng < (xj - xi) * (pLat - yi) / (yj - yi + 0.0) + xi);
+                    if (intersect) inside = !inside;
+                }
+                return inside;
+            }
+
+            for (var p = 0; p < polys.length; p++) {
+                try {
+                    var ring = polys[p];
+                    if (!ring || ring.length < 3) continue;
+                    if (pointInRing(lat, lng, ring)) return true;
+                } catch (e) { }
+            }
+            return false;
+        } catch (e) { return false; }
+    }
+
+    // Helper: when turf is available, compute an interior point on the largest polygon part of a layer's feature
+    , _getTurfInteriorPointForLargestPolygon: function (layer) {
+        try {
+            if (!window.turf || !layer || !layer.feature) return null;
+            // extract latlng rings similarly to _getLargestPolygonCenter
+            var latlngs = layer.getLatLngs ? layer.getLatLngs() : null;
+            if (!latlngs || !latlngs.length) return null;
+
+            var polygons = [];
+            if (latlngs[0] && latlngs[0][0] && typeof latlngs[0][0].lat === 'number') {
+                // single Polygon: outer ring only
+                polygons.push(latlngs[0]);
+            } else {
+                // MultiPolygon: collect outer ring of each polygon
+                for (var i = 0; i < latlngs.length; i++) {
+                    if (latlngs[i] && latlngs[i][0] && typeof latlngs[i][0][0] !== 'undefined') {
+                        polygons.push(latlngs[i][0]);
+                    }
+                }
+            }
+
+            if (!polygons.length) return null;
+
+            // Convert each outer ring to a GeoJSON Polygon feature and compute turf.area to find the largest
+            var best = { area: 0, point: null };
+            for (var p = 0; p < polygons.length; p++) {
+                try {
+                    var ring = polygons[p];
+                    if (!ring || ring.length < 3) continue;
+                    var coords = ring.map(function (ll) { return [ll.lng, ll.lat]; });
+                    // Ensure polygon coordinates are closed per GeoJSON (first === last)
+                    if (coords.length && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
+                        coords = coords.concat([coords[0]]);
+                    }
+                    var polyFeat = { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [coords] } };
+                    try {
+                        var a = window.turf.area(polyFeat) || 0;
+                        if (a > best.area) {
+                            // compute interior point on this polygon
+                            var interior = null;
+                            try { interior = window.turf.pointOnFeature(polyFeat); } catch (ie) { interior = null; }
+                            if (interior && interior.geometry && interior.geometry.coordinates) {
+                                best = { area: a, point: interior };
+                            } else {
+                                // as fallback to turf.pointOnFeature fail, compute centroid via layer projection
+                                // reuse existing centroid logic by creating a temporary layer-like object is complex, so skip
+                            }
+                        }
+                    } catch (e) { /* ignore area calculation errors */ }
+                } catch (e) { }
+            }
+            if (best.point && best.point.geometry && best.point.geometry.coordinates) {
+                var c = best.point.geometry.coordinates;
+                return L.latLng(c[1], c[0]);
+            }
+        } catch (e) { }
+        return null;
+    }
+
+    // Helper: optionally place the label offshore with a connector if the polygon is narrow/elongated
+    , _maybePlaceOffshoreLabel: function (layer, id, name, center) {
+        try {
+            var map = window.mapInterop._map;
+            if (!map || !layer || !center) return null;
+
+            // cleanup any existing marker/connector for this id
+            try {
+                if (window.mapInterop._labelMarkers[id]) { map.removeLayer(window.mapInterop._labelMarkers[id]); delete window.mapInterop._labelMarkers[id]; }
+            } catch (e) { }
+            try {
+                if (window.mapInterop._labelConnectors && window.mapInterop._labelConnectors[id]) {
+                    var obj = window.mapInterop._labelConnectors[id];
+                    if (obj.line) try { map.removeLayer(obj.line); } catch (e) { }
+                    if (obj.arrow) try { map.removeLayer(obj.arrow); } catch (e) { }
+                    delete window.mapInterop._labelConnectors[id];
+                }
+            } catch (e) { }
+
+            // get largest polygon pixel bbox to decide narrowness
+            var latlngs = layer.getLatLngs ? layer.getLatLngs() : null;
+            if (!latlngs) {
+                // place normal marker
+                var m = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                window.mapInterop._labelMarkers[id] = m;
+                return m;
+            }
+
+            // collect outer ring points for pixel bbox
+            var rings = [];
+            if (latlngs[0] && latlngs[0][0] && typeof latlngs[0][0].lat === 'number') {
+                rings.push(latlngs[0]);
+            } else {
+                for (var i = 0; i < latlngs.length; i++) {
+                    if (latlngs[i] && latlngs[i][0] && typeof latlngs[i][0][0] !== 'undefined') rings.push(latlngs[i][0]);
+                }
+            }
+
+            var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (var r = 0; r < rings.length; r++) {
+                try {
+                    var ring = rings[r];
+                    for (var j = 0; j < ring.length; j++) {
+                        var p = map.latLngToLayerPoint(ring[j]);
+                        if (p.x < minX) minX = p.x;
+                        if (p.x > maxX) maxX = p.x;
+                        if (p.y < minY) minY = p.y;
+                        if (p.y > maxY) maxY = p.y;
+                    }
+                } catch (e) { }
+            }
+            if (!isFinite(minX) || !isFinite(minY)) {
+                var m2 = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                window.mapInterop._labelMarkers[id] = m2;
+                return m2;
+            }
+
+            var width = maxX - minX;
+            var height = maxY - minY;
+
+            // heuristics: if polygon is narrow and tall (like Norway) or very small, place label offshore to the west
+            var shouldOffshore = false;
+            try {
+                if (width > 0 && height / width > 2.5) shouldOffshore = true; // tall & narrow
+                if (width < 120 && height < 120) shouldOffshore = true; // very small
+            } catch (e) { }
+
+            if (!shouldOffshore) {
+                var m3 = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                window.mapInterop._labelMarkers[id] = m3;
+                return m3;
+            }
+
+            // compute offshore label position by shifting left (west) in pixel space
+            try {
+                var centerPt = map.latLngToLayerPoint(center);
+                var offset = Math.max(80, width * 1.2);
+                var labelPt = L.point(centerPt.x - offset, centerPt.y);
+                var labelLatLng = map.layerPointToLatLng(labelPt);
+
+                // create label HTML with inline arrow to the right; rotate arrow toward centroid
+                try {
+                    var dx = centerPt.x - labelPt.x;
+                    var dy = centerPt.y - labelPt.y;
+                    var angleRad = Math.atan2(dy, dx);
+                    var angleDeg = (angleRad * 180 / Math.PI) + 90; // adjust arrow orientation
+                    var arrowSpan = '<span style="display:inline-block; margin-left:8px; transform: rotate(' + angleDeg + 'deg); font-size:14px; color:#111;">&#9650;</span>';
+                    var labelHtml = '<span class="label-text">' + (name || '') + '</span>' + arrowSpan;
+                    var offshoreMarker = L.marker(labelLatLng, { interactive: false, icon: L.divIcon({ className: 'country-label offshore-label', html: labelHtml, iconSize: null }) }).addTo(map);
+                    window.mapInterop._labelMarkers[id] = offshoreMarker;
+
+                    // draw connector line from polygon centroid to offshore label (no separate arrow marker)
+                    var line = L.polyline([center, labelLatLng], { color: '#222', weight: 1, opacity: 0.8, dashArray: '3,6' }).addTo(map);
+                    window.mapInterop._labelConnectors[id] = { line: line };
+                    return offshoreMarker;
+                } catch (e) {
+                    var fm = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                    window.mapInterop._labelMarkers[id] = fm;
+                    return fm;
+                }
+            } catch (e) {
+                // fallback: normal marker
+                var fm = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                window.mapInterop._labelMarkers[id] = fm;
+                return fm;
+            }
+        } catch (e) { return null; }
+    }
+
     , setCountryConquered: function (id, color) {
         try {
             var layer = window.mapInterop._layersById[id];
@@ -176,25 +420,39 @@ window.mapInterop = {
                     // Try to place a persistent label marker at the polygon centroid (or bounds center)
                     var map = window.mapInterop._map;
                     var center = null;
-                    try {
-                        // Prefer centroid of largest polygon part for multi-polygons (fixes labels like Russia)
-                        if (map && layer && layer.getLatLngs) {
-                            center = window.mapInterop._getLargestPolygonCenter(layer, map) || null;
-                        }
-                        if (!center) {
-                            if (layer.getBounds) center = layer.getBounds().getCenter();
-                            else if (layer.getLatLng) center = layer.getLatLng();
-                        }
-                    } catch (e) { center = null; }
+                        try {
+                            // Prefer a true interior point when turf is available (handles complex polygons)
+                            if (window.turf && layer && layer.feature) {
+                                try {
+                                    // Prefer interior point on the largest polygon part (helps multi-part countries like Norway)
+                                    var interior = window.mapInterop._getTurfInteriorPointForLargestPolygon(layer) || null;
+                                    if (!interior) {
+                                        // fallback to pointOnFeature for the whole feature
+                                        try {
+                                            var whole = window.turf.pointOnFeature(layer.feature);
+                                            if (whole && whole.geometry && whole.geometry.coordinates) {
+                                                var wc = whole.geometry.coordinates;
+                                                interior = L.latLng(wc[1], wc[0]);
+                                            }
+                                        } catch (e) { /* ignore */ }
+                                    }
+                                    if (interior) center = interior;
+                                } catch (e) { /* turf failed, fall through */ }
+                            }
+                            // Fallback: centroid of largest polygon part
+                            if (!center && map && layer && layer.getLatLngs) {
+                                center = window.mapInterop._getLargestPolygonCenter(layer, map) || null;
+                            }
+                            // Final fallback: bounds center or single LatLng
+                            if (!center) {
+                                if (layer.getBounds) center = layer.getBounds().getCenter();
+                                else if (layer.getLatLng) center = layer.getLatLng();
+                            }
+                        } catch (e) { center = null; }
 
                     if (map && center) {
-                        // remove existing marker if present
-                        try { if (window.mapInterop._labelMarkers[id]) { map.removeLayer(window.mapInterop._labelMarkers[id]); } } catch (e) { }
-                        var marker = L.marker(center, {
-                            interactive: false,
-                            icon: L.divIcon({ className: 'country-label', html: name, iconSize: null })
-                        }).addTo(map);
-                        window.mapInterop._labelMarkers[id] = marker;
+                        // use offshore-aware placement helper which will remove any existing marker/connector
+                        try { window.mapInterop._maybePlaceOffshoreLabel(layer, id, name, center); } catch (e) { /* fallback below */ }
                     } else {
                         // fallback to permanent tooltip centered on the polygon
                         if (layer.bindTooltip) layer.bindTooltip(name, { permanent: true, direction: 'center', className: 'country-label' }).openTooltip();
@@ -228,7 +486,23 @@ window.mapInterop = {
                         var map = window.mapInterop._map;
                         var center = null;
                         try {
-                            if (map && layer && layer.getLatLngs) {
+                            // Prefer interior point on the largest polygon part when possible
+                            if (window.turf && layer && layer.feature) {
+                                try {
+                                    var interior2 = window.mapInterop._getTurfInteriorPointForLargestPolygon(layer) || null;
+                                    if (!interior2) {
+                                        try {
+                                            var whole2 = window.turf.pointOnFeature(layer.feature);
+                                            if (whole2 && whole2.geometry && whole2.geometry.coordinates) {
+                                                var wc2 = whole2.geometry.coordinates;
+                                                interior2 = L.latLng(wc2[1], wc2[0]);
+                                            }
+                                        } catch (e) { }
+                                    }
+                                    if (interior2) center = interior2;
+                                } catch (e) { }
+                            }
+                            if (!center && map && layer && layer.getLatLngs) {
                                 center = window.mapInterop._getLargestPolygonCenter(layer, map) || null;
                             }
                             if (!center) {
@@ -236,10 +510,17 @@ window.mapInterop = {
                                 else if (layer.getLatLng) center = layer.getLatLng();
                             }
                         } catch (e) { center = null; }
+                        // ensure the chosen center actually lies inside the polygon; if not, fallback to bounds center
+                        try {
+                            if (map && center && layer && !window.mapInterop._pointInLayer(layer, center)) {
+                                // centroid landed outside (common for complex polygons); use bounds center if available
+                                if (layer.getBounds) center = layer.getBounds().getCenter();
+                                else if (layer.getLatLng) center = layer.getLatLng();
+                            }
+                        } catch (e) { }
+
                         if (map && center) {
-                            try { if (window.mapInterop._labelMarkers[id]) { map.removeLayer(window.mapInterop._labelMarkers[id]); } } catch (e) { }
-                            var marker = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
-                            window.mapInterop._labelMarkers[id] = marker;
+                            try { window.mapInterop._maybePlaceOffshoreLabel(layer, id, name, center); } catch (e) { }
                         } else {
                             if (layer.bindTooltip) layer.bindTooltip(name, { permanent: true, direction: 'center', className: 'country-label' }).openTooltip();
                         }
@@ -298,6 +579,32 @@ window.mapInterop = {
         } catch (e) { console.error('mapInterop.setCountryConqueredAny error', e); return null; }
     }
 
+    // Update label visibility depending on current zoom level
+    , _updateLabelVisibility: function () {
+        try {
+            var map = window.mapInterop._map;
+            if (!map) return;
+            var z = map.getZoom ? map.getZoom() : 0;
+            // threshold: hide labels below zoom 4 (you can tweak this)
+            var visible = (z >= 4);
+            // toggle markers and connectors
+            try {
+                for (var id in window.mapInterop._labelMarkers) {
+                    try { var m = window.mapInterop._labelMarkers[id]; if (m) { if (visible) map.addLayer(m); else map.removeLayer(m); } } catch (e) { }
+                }
+            } catch (e) { }
+            try {
+                for (var cid in window.mapInterop._labelConnectors) {
+                    try { var obj = window.mapInterop._labelConnectors[cid]; if (obj && obj.line) { if (visible) map.addLayer(obj.line); else map.removeLayer(obj.line); } } catch (e) { }
+                }
+            } catch (e) { }
+            // when becoming visible, recompute positions to ensure offshore labels are placed correctly at the current zoom
+            if (visible) {
+                try { window.mapInterop.recomputeLabels(); } catch (e) { }
+            }
+        } catch (e) { }
+    }
+
     , focusElement: function (id) {
         try {
             if (!id) return;
@@ -318,7 +625,77 @@ window.mapInterop = {
                 try { var m = window.mapInterop._labelMarkers[k]; if (m) window.mapInterop._map.removeLayer(m); } catch (e) { }
             }
             window.mapInterop._labelMarkers = {};
+            // remove any connector lines/arrows
+            for (var c in window.mapInterop._labelConnectors) {
+                try {
+                    var obj = window.mapInterop._labelConnectors[c];
+                    if (obj) {
+                        try { if (obj.line) window.mapInterop._map.removeLayer(obj.line); } catch (e) { }
+                        try { if (obj.arrow) window.mapInterop._map.removeLayer(obj.arrow); } catch (e) { }
+                    }
+                } catch (e) { }
+            }
+            window.mapInterop._labelConnectors = {};
         } catch (e) { console.error('mapInterop.clearConquered error', e); }
+    }
+
+    // Recompute all label positions based on current geometry and prefer turf interior points for multi-part features
+    , recomputeLabels: function () {
+        try {
+            var map = window.mapInterop._map;
+            if (!map || !window.mapInterop._geoLayer) return false;
+
+            // iterate all known layers and update existing markers/tooltips
+            var keys = Object.keys(window.mapInterop._layersById || {});
+            for (var i = 0; i < keys.length; i++) {
+                try {
+                    var id = keys[i];
+                    var layer = window.mapInterop._layersById[id];
+                    if (!layer) continue;
+
+                    // only reposition labels for layers that are currently styled (conquered)
+                    // We check for fillOpacity > 0 as a heuristic
+                    var styled = false;
+                    try { var s = layer.options && layer.options.fillOpacity; styled = (typeof s === 'number' && s > 0); } catch (e) { }
+                    if (!styled) continue;
+
+                    var name = (layer.feature && layer.feature.properties && (layer.feature.properties.name || layer.feature.properties.NAME || layer.feature.properties.ADMIN || layer.feature.properties.admin)) || id;
+                    var newCenter = null;
+                    try {
+                        if (window.turf) {
+                            var interior = window.mapInterop._getTurfInteriorPointForLargestPolygon(layer) || null;
+                            if (!interior) {
+                                try {
+                                    var whole = window.turf.pointOnFeature(layer.feature);
+                                    if (whole && whole.geometry && whole.geometry.coordinates) {
+                                        var wc = whole.geometry.coordinates;
+                                        interior = L.latLng(wc[1], wc[0]);
+                                    }
+                                } catch (e) { }
+                            }
+                            if (interior) newCenter = interior;
+                        }
+                    } catch (e) { }
+                    if (!newCenter) {
+                        try { newCenter = window.mapInterop._getLargestPolygonCenter(layer, map) || null; } catch (e) { newCenter = null; }
+                    }
+                    if (!newCenter) {
+                        try { if (layer.getBounds) newCenter = layer.getBounds().getCenter(); else if (layer.getLatLng) newCenter = layer.getLatLng(); } catch (e) { newCenter = null; }
+                    }
+
+                    if (newCenter) {
+                        try {
+                            // delegate placement (offshore-aware) which will remove/move existing markers/connectors
+                            window.mapInterop._maybePlaceOffshoreLabel(layer, id, name, newCenter);
+                            continue;
+                        } catch (e) {
+                            try { if (window.mapInterop._labelMarkers[id]) { var m = window.mapInterop._labelMarkers[id]; if (m && m.setLatLng) m.setLatLng(newCenter); continue; } } catch (ee) { }
+                        }
+                    }
+                } catch (e) { }
+            }
+            return true;
+        } catch (e) { console.error('mapInterop.recomputeLabels error', e); return false; }
     }
 
     // Zoom the map to the bounding box of all features matching the provided continent name.
@@ -368,4 +745,15 @@ window.mapInterop = {
             }
         } catch (e) { console.error('mapInterop.zoomToContinent error', e); return false; }
     }
+};
+
+// Expose a small helper to reset view programmatically
+window.mapInterop.resetView = function () {
+    try {
+        if (window.mapInterop._map && window.mapInterop._initialCenter) {
+            window.mapInterop._map.setView(window.mapInterop._initialCenter, window.mapInterop._initialZoom);
+            return true;
+        }
+    } catch (e) { }
+    return false;
 };
