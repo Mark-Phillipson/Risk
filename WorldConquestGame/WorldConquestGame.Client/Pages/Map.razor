@@ -6,6 +6,31 @@
 
 <div class="map-page">
     <div id="map" class="map"></div>
+    <div style="position:absolute;top:0;left:0;bottom:0;z-index:2200;display:flex;align-items:stretch;">
+        <div style="width:@(ShowCountries ? "320px" : "36px");height:100vh;background:white;border-right:1px solid #ddd;box-shadow:2px 0 6px rgba(0,0,0,0.08);overflow:hidden;transition:width 200ms ease;">
+            <div style="display:flex;flex-direction:column;height:100%;">
+                <div style="display:flex;align-items:center;justify-content:flex-end;padding:6px;border-bottom:1px solid rgba(0,0,0,0.06);">
+                    <button class="btn btn-sm btn-outline-secondary" style="width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;" @onclick="() => ShowCountries = !ShowCountries">
+                        @if (ShowCountries)
+                        {
+                            <span>&#x25C0;</span> @* left-pointing chevron to collapse *@
+                        }
+                        else
+                        {
+                            <span>&#x25B6;</span> @* right-pointing chevron to expand *@
+                        }
+                    </button>
+                </div>
+
+                <div style="padding:8px;flex:1 1 auto;overflow:auto;">
+                    @if (ShowCountries)
+                    {
+                        <Countries Title="Countries" />
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Reset button removed from map overlay to avoid covering map controls -->
 
     <!-- Render QuestionPanel locally on the map page for visibility -->
@@ -14,6 +39,7 @@
 
 @code {
     private DotNetObjectReference<Map>? objRef;
+    private bool ShowCountries = false;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

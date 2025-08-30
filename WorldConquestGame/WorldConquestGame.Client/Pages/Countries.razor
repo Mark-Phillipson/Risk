@@ -1,0 +1,162 @@
+@using WorldConquestGame.Shared.Models
+@inject WorldConquestGame.Client.Services.CountryService CountryService
+@inject WorldConquestGame.Client.Services.GameService GameService
+@using Microsoft.AspNetCore.Components
+
+@code {
+    [Parameter]
+    public string? Title { get; set; } = "Countries";
+
+    private string _search = string.Empty;
+    private IEnumerable<WorldConquestGame.Shared.Models.Country> Filtered =>
+        string.IsNullOrWhiteSpace(_search) || countries == null
+            ? (countries ?? Enumerable.Empty<WorldConquestGame.Shared.Models.Country>())
+            : countries.Where(c => (c.Name ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase) || (c.Capital ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase));
+}
+
+<div class="countries-component" style="display:flex;flex-direction:column;height:100%;">
+    <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center;">
+        <h4 style="margin:0;flex:0 0 auto;">@Title</h4>
+        <input class="form-control" placeholder="Search country or capital" style="flex:1 1 auto;min-width:0;" @bind="_search" />
+    </div>
+
+    @if (countries == null)
+    {
+        <p>Loading countries…</p>
+    }
+    else if (!countries.Any())
+    {
+        <p>No countries available.</p>
+    }
+    else
+    {
+        <ul class="country-list" style="list-style:none;padding-left:0;margin:0;overflow:auto;flex:1 1 auto;">
+            @foreach (var c in Filtered.OrderBy(x => x.Name))
+            {
+                <li style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.03);">
+                    @if (c.IsConquered)
+                    {
+                        <span class="conquered">@c.Name — <em>@(string.IsNullOrWhiteSpace(c.Capital) ? "(no capital)" : c.Capital)</em></span>
+                    }
+                    else
+                    {
+                        <span>@c.Name — <em>@(string.IsNullOrWhiteSpace(c.Capital) ? "(no capital)" : c.Capital)</em></span>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+<style>
+    .conquered { text-decoration: line-through; color: #777; }
+</style>
+
+@code {
+    private List<WorldConquestGame.Shared.Models.Country>? countries;
+    private bool _enrichingCapitals = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        countries = await CountryService.GetAllAsync();
+
+        // Initial quick merge from any in-memory game state
+        MergeFromGameService();
+
+        // Start background enrichment of missing capitals (best-effort)
+        _ = EnrichMissingCapitalsAsync();
+
+        GameService.CountryConquered += OnCountryConquered;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Ensure we pick up any persisted/late-initialized game state
+            MergeFromGameService();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void MergeFromGameService()
+    {
+        if (countries == null || GameService.Countries == null) return;
+        foreach (var c in countries)
+        {
+            var g = GameService.Countries.FirstOrDefault(x => string.Equals(x.Code, c.Code, StringComparison.OrdinalIgnoreCase));
+            if (g != null)
+            {
+                c.IsConquered = g.IsConquered;
+                if (!string.IsNullOrWhiteSpace(g.Capital)) c.Capital = g.Capital;
+            }
+        }
+    }
+
+    private async Task EnrichMissingCapitalsAsync()
+    {
+        if (countries == null || _enrichingCapitals) return;
+        _enrichingCapitals = true;
+        try
+        {
+            // Collect codes missing capitals
+            var toFetch = countries.Where(c => string.IsNullOrWhiteSpace(c.Capital) && !string.IsNullOrWhiteSpace(c.Code)).Select(c => c.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            const int batch = 10;
+            for (int i = 0; i < toFetch.Count; i += batch)
+            {
+                var chunk = toFetch.Skip(i).Take(batch).ToList();
+                var tasks = chunk.Select(code => CountryService.GetCapitalByCodeAsync(code)).ToList();
+                var results = await Task.WhenAll(tasks);
+                for (int j = 0; j < chunk.Count; j++)
+                {
+                    var cap = results[j];
+                    if (!string.IsNullOrWhiteSpace(cap))
+                    {
+                        var match = countries.FirstOrDefault(c => string.Equals(c.Code, chunk[j], StringComparison.OrdinalIgnoreCase));
+                        if (match != null) match.Capital = cap;
+                    }
+                }
+                await InvokeAsync(StateHasChanged);
+                // small delay to be polite to the API
+                await Task.Delay(250);
+            }
+        }
+        catch { }
+        finally { _enrichingCapitals = false; }
+    }
+
+    private async Task Refresh()
+    {
+        // Re-run merge and try to enrich capitals again
+        MergeFromGameService();
+        await EnrichMissingCapitalsAsync();
+    }
+
+    private void OnCountryConquered(string code)
+    {
+        if (string.IsNullOrEmpty(code) || countries == null) return;
+
+        var item = countries.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
+        if (item != null)
+        {
+            var g = GameService.Countries.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
+            if (g != null)
+            {
+                item.IsConquered = g.IsConquered;
+                if (!string.IsNullOrWhiteSpace(g.Capital)) item.Capital = g.Capital;
+            }
+            else
+            {
+                item.IsConquered = true;
+            }
+
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose()
+    {
+        GameService.CountryConquered -= OnCountryConquered;
+    }
+}
+

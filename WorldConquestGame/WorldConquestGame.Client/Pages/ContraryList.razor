@@ -1,0 +1,94 @@
+@page "/contrary-list"
+@using WorldConquestGame.Shared.Models
+@inject WorldConquestGame.Client.Services.CountryService CountryService
+@inject WorldConquestGame.Client.Services.GameService GameService
+
+<h3>Countries</h3>
+
+@if (countries == null)
+{
+    <p>Loading countries…</p>
+}
+else if (!countries.Any())
+{
+    <p>No countries available.</p>
+}
+else
+{
+    <ul class="country-list">
+        @foreach (var c in countries.OrderBy(x => x.Name))
+        {
+            <li>
+                @if (c.IsConquered)
+                {
+                    <span class="conquered">@c.Name — <em>@(string.IsNullOrWhiteSpace(c.Capital) ? "(no capital)" : c.Capital)</em></span>
+                }
+                else
+                {
+                    <span>@c.Name — <em>@(string.IsNullOrWhiteSpace(c.Capital) ? "(no capital)" : c.Capital)</em></span>
+                }
+            </li>
+        }
+    </ul>
+}
+
+<style>
+    .country-list { list-style: none; padding-left: 0; margin: 0; }
+    .country-list li { padding: 4px 0; }
+    .conquered { text-decoration: line-through; color: #777; }
+</style>
+
+@code {
+    private List<WorldConquestGame.Shared.Models.Country>? countries;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load the canonical country list (includes Name and optional Capital)
+        countries = await CountryService.GetAllAsync();
+
+        // Merge any in-memory game state (conquered flags, persisted capitals)
+        if (countries != null && GameService.Countries != null)
+        {
+            foreach (var c in countries)
+            {
+                var g = GameService.Countries.FirstOrDefault(x => string.Equals(x.Code, c.Code, StringComparison.OrdinalIgnoreCase));
+                if (g != null)
+                {
+                    c.IsConquered = g.IsConquered;
+                    if (!string.IsNullOrWhiteSpace(g.Capital)) c.Capital = g.Capital;
+                }
+            }
+        }
+
+        // Listen for runtime updates when a country is conquered
+        GameService.CountryConquered += OnCountryConquered;
+    }
+
+    private void OnCountryConquered(string code)
+    {
+        if (string.IsNullOrEmpty(code) || countries == null) return;
+
+        var item = countries.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
+        if (item != null)
+        {
+            // Prefer the authoritative state from GameService if present
+            var g = GameService.Countries.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
+            if (g != null)
+            {
+                item.IsConquered = g.IsConquered;
+                if (!string.IsNullOrWhiteSpace(g.Capital)) item.Capital = g.Capital;
+            }
+            else
+            {
+                item.IsConquered = true;
+            }
+
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose()
+    {
+        GameService.CountryConquered -= OnCountryConquered;
+    }
+}

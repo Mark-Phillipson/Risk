@@ -1,0 +1,10 @@
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+    {
+        // This file intentionally has no @page directive so it does not register a route.
+        // If code elsewhere navigates to a component named "Country", redirect to the canonical /country route.
+        Nav.NavigateTo("/country", true);
+    }
+}
