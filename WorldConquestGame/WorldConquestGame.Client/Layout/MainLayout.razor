@@ -1,6 +1,7 @@
 ﻿@inherits LayoutComponentBase
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
+@implements IDisposable
 
 <div class="page">
     @* <div class="sidebar">
@@ -10,20 +11,39 @@
     <main>
         <div class="top-row px-4">
             <h1 class="page-title">World Conquest</h1>
-            <nav class="continent-buttons ms-3">
-                <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Africa")' aria-label="Zoom to Africa">Africa</button>
-                <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Europe")' aria-label="Zoom to Europe">Europe</button>
-                <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Asia")' aria-label="Zoom to Asia">Asia</button>
-                <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("North America")' aria-label="Zoom to North America">N. America</button>
-                <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("South America")' aria-label="Zoom to South America">S. America</button>
-                <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Oceania")' aria-label="Zoom to Oceania">Oceania</button>
-                <button class="btn btn-sm btn-outline-primary me-2" @onclick='() => ZoomToContinent("Antarctica")' aria-label="Zoom to Antarctica">Antarctica</button>
-                <button class="btn btn-sm btn-outline-danger" @onclick="ResetAndGoToMap" aria-label="Reset saved map">Reset</button>
-            </nav>
+            @if (ShouldShowContinentButtons)
+            {
+                <nav class="continent-buttons ms-3">
+                    <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Africa")' aria-label="Zoom to Africa">Africa</button>
+                    <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Europe")' aria-label="Zoom to Europe">Europe</button>
+                    <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Asia")' aria-label="Zoom to Asia">Asia</button>
+                    <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("North America")' aria-label="Zoom to North America">N. America</button>
+                    <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("South America")' aria-label="Zoom to South America">S. America</button>
+                    <button class="btn btn-sm btn-outline-primary me-1" @onclick='() => ZoomToContinent("Oceania")' aria-label="Zoom to Oceania">Oceania</button>
+                    <button class="btn btn-sm btn-outline-primary me-2" @onclick='() => ZoomToContinent("Antarctica")' aria-label="Zoom to Antarctica">Antarctica</button>
+                    <button class="btn btn-sm btn-outline-danger" @onclick="ResetAndGoToMap" aria-label="Reset saved map">Reset</button>
+                </nav>
+            }
             <a class="ms-3" href="map">Map</a>
         </div>
 
         @code {
+            private bool ShouldShowContinentButtons
+            {
+                get
+                {
+                    try
+                    {
+                        var rel = NavigationManager.ToBaseRelativePath(NavigationManager.Uri)?.TrimEnd('/') ?? string.Empty;
+                        return !string.Equals(rel, "normal-map", StringComparison.OrdinalIgnoreCase);
+                    }
+                    catch
+                    {
+                        return true;
+                    }
+                }
+            }
+
             private async Task ZoomToContinent(string continent)
             {
                 // If we're not already on the map page, store the requested continent in sessionStorage
@@ -58,6 +78,23 @@
                 }
                 catch { }
                 NavigationManager.NavigateTo("/map");
+            }
+
+            // Subscribe to location changes so the layout can re-render when route changes
+            protected override void OnInitialized()
+            {
+                NavigationManager.LocationChanged += OnLocationChanged;
+            }
+
+            private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+            {
+                // Re-render to update button visibility
+                InvokeAsync(StateHasChanged);
+            }
+
+            public void Dispose()
+            {
+                NavigationManager.LocationChanged -= OnLocationChanged;
             }
         }
 

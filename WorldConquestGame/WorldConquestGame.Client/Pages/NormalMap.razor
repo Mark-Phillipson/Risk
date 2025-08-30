@@ -1,0 +1,25 @@
+@page "/normal-map"
+@inject IJSRuntime JS
+
+<div class="map-page">
+    <div id="normalMap" class="map" style="height:800px;"></div>
+</div>
+
+@code {
+    private DotNetObjectReference<NormalMap>? objRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            objRef = DotNetObjectReference.Create(this);
+            // Initialize a simple Leaflet map that displays GeoJSON and uses Leaflet tooltips
+            await JS.InvokeVoidAsync("normalMap.init", "normalMap", "data/countries.geojson");
+        }
+    }
+
+    public void Dispose()
+    {
+        objRef?.Dispose();
+    }
+}
