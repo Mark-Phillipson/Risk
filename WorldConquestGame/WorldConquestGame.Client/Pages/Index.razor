@@ -7,23 +7,15 @@
 <section class="game-instructions">
   <h2>How to play</h2>
   <p>
-    Objective: Expand your territory and climb the scoreboard. Use the map to view and select countries, answer
-    questions to gain advantages, and capture countries to increase your score.
+    Objective: Click countries on the map and identify the country and its capital. The game is complete when the
+    entire map is green (all countries and capitals have been guessed correctly).
   </p>
-  <ol>
-    <li>Select a country on the map to inspect it and see available actions.</li>
-    <li>Answer the question(s) presented to earn attacks, moves, or bonuses.</li>
-    <li>Use the map controls (below) to navigate and target countries to attack or reinforce.</li>
-    <li>Track progress on the Scoreboard and adapt your strategy accordingly.</li>
-  </ol>
 
   <h3>Map controls</h3>
   <p>The map uses Leaflet for interaction. Use these keyboard and mouse controls to navigate:</p>
   <ul>
     <li><strong>Pan map</strong>: <kbd>Arrow Keys</kbd> (Left/Right/Up/Down) or click and drag with the left mouse
       button.</li>
-    <li><strong>Pan alternative keys</strong>: <kbd>W</kbd>/<kbd>A</kbd>/<kbd>S</kbd>/<kbd>D</kbd> (some browsers/apps
-      may also accept these for panning if focus is on the map).</li>
     <li><strong>Zoom in / out</strong>: Mouse wheel scroll (wheel up = zoom in, wheel down = zoom out), or press
       <kbd>+</kbd> or <kbd>-</kbd> on the keyboard.
     </li>
@@ -33,18 +25,8 @@
       continent — this uses the map's continent zoom helper.</li>
     <li><strong>Zoom step keys</strong>: <kbd>=</kbd> usually behaves like <kbd>+</kbd> (useful on keyboards where +
       requires Shift).</li>
-    <li><strong>Select country</strong>: Click a country with the left mouse button; the game will invoke the .NET
-      handler for country clicks as seen in the console logs.</li>
-    <li><strong>Keyboard selection</strong>: Press <kbd>Enter</kbd> when a focused country element or map control has
-      focus (keyboard selection requires an element to be focused).</li>
-    <li><strong>Reset / Fit view</strong>: There is no dedicated keybinding implemented in the current interop; use the
-      on-screen controls or refresh the page to reset the view. If you want a dedicated key (for example <kbd>Home</kbd>
-      or <kbd>0</kbd>), I can wire it up in `mapInterop.js`.</li>
   </ul>
 
-  <p class="note"><em>If you want custom keyboard shortcuts (for example: Home = center map, PageUp/PageDown = zoom
-      step, or Enter to select nearest country), tell me which bindings you prefer and I will implement them in
-      `wwwroot/js/mapInterop.js` and update these instructions.</em></p>
 
   <h3>Color legend</h3>
   <p>Result colors shown on the map indicate how well a country &amp; its capital were guessed:</p>
