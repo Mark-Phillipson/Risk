@@ -20,6 +20,8 @@
         if (firstRender)
         {
             objRef = DotNetObjectReference.Create(this);
+            // Disable persistent country labels on this map page; rely on color only.
+            try { await JS.InvokeVoidAsync("sessionStorage.setItem", "showCountryLabels", "false"); } catch { }
             await JS.InvokeVoidAsync("mapInterop.initMap", "map", "data/countries.geojson", objRef);
 
             // After map loads, attempt to read persisted countries and re-apply styles
@@ -42,7 +44,8 @@
 
                 var persisted = await StorageService.LoadCountriesAsync();
                 // log what we loaded for debugging
-                await JS.InvokeVoidAsync("console.log", "Map: loaded persisted countries:", persisted == null ? 0 : persisted.Count, persisted);
+                await JS.InvokeVoidAsync("console.log", "Map: loaded persisted countries:", persisted == null ? 0 : persisted.Count,
+                persisted);
                 if (persisted != null && persisted.Count > 0)
                 {
                     // merge into in-memory model

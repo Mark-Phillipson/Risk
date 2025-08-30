@@ -1,4 +1,4 @@
-ww@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web
 @inject WorldConquestGame.Client.Services.GameService GameService
 @inject IJSRuntime JS
 @inject WorldConquestGame.Client.Services.CountryService CountryService
@@ -47,28 +47,14 @@ ww@using Microsoft.AspNetCore.Components.Web
         <input id="countryInput" @bind="CountryAnswer" placeholder="Country name" @onkeydown="OnAnswerKeyDown" />
         <input id="capitalInput" @bind="CapitalAnswer" placeholder="Capital (optional)" @onkeydown="OnAnswerKeyDown" />
     </div>
-    @if (!_showAddCustom)
-    {
-        <div style="margin-top:0.5rem; font-size:0.9rem; color:#666;">Don't see the right question? <a href="#" @onclick="(()=>_showAddCustom=true)">Add custom</a></div>
-    }
-    else
-    {
-        <div style="margin-top:0.5rem;">
-            <input placeholder="Custom question" @bind="CustomQuestionText" style="width:100%; margin-bottom:0.25rem;" />
-            <input placeholder="Answer" @bind="CustomQuestionAnswer" style="width:100%; margin-bottom:0.25rem;" />
-            <div>
-                <button class="btn btn-success" @onclick="AddCustomQuestion">Save Question</button>
-                <button class="btn btn-link" style="margin-left:0.5rem;" @onclick="(()=>_showAddCustom=false)">Cancel</button>
-            </div>
-        </div>
-    }
     <div style="margin-top:0.5rem;">
         <button class="btn btn-primary" @onclick="SubmitAnswer">Submit</button>
         <button class="btn btn-secondary" style="margin-left:0.5rem;" @onclick="Close">Close</button>
+        
     </div>
     @if (_showIncorrect)
     {
-        <div class="incorrect-msg">Incorrect — try again.</div>
+        <div class="incorrect-msg">Incorrect — try again. <span>@expectedCountry</span>/<span>@expectedCapital</span></div>
     }
 </div>
 
@@ -78,6 +64,8 @@ ww@using Microsoft.AspNetCore.Components.Web
 }
 
 @code {
+    string expectedCountry = string.Empty;
+    string expectedCapital = string.Empty;
     private Question? CurrentQuestion;
     private string CountryAnswer = string.Empty;
     private string CapitalAnswer = string.Empty;
@@ -140,6 +128,8 @@ ww@using Microsoft.AspNetCore.Components.Web
     // Log to browser console for easier debugging
     await JS.InvokeVoidAsync("console.log", $"QuestionPanel: received id={id}");
         if (string.IsNullOrEmpty(id)) return;
+        expectedCountry = string.Empty;
+        expectedCapital = string.Empty;
 
         // Ensure countries are loaded (in case OnInitializedAsync did not complete yet)
         if (!_countriesLoaded)
@@ -199,8 +189,6 @@ ww@using Microsoft.AspNetCore.Components.Web
     private async Task SubmitAnswer()
     {
         // Determine expected country name and capital for the last clicked country.
-        string expectedCountry = string.Empty;
-        string expectedCapital = string.Empty;
         if (!string.IsNullOrEmpty(_lastCountryId) && _countryByKey.ContainsKey(_lastCountryId))
         {
             var c = _countryByKey[_lastCountryId];
