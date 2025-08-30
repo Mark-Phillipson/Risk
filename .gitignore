@@ -40,18 +40,5 @@ Desktop.ini
 *~
 ~$*
 
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Server.dll
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Server.exe
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Server.pdb
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Shared.dll
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Shared.pdb
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Server.dll
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Server.exe
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Server.pdb
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Shared.dll
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Shared.pdb
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Server.dll
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Server.exe
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Server.pdb
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Shared.dll
-WorldConquestGame/WorldConquestGame.Server/bin/Debug/net9.0/WorldConquestGame.Shared.pdb
+# Ignore server debug build outputs (keep this concise so it's maintainable)
+WorldConquestGame/WorldConquestGame.Server/bin/Debug/
