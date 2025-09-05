@@ -120,6 +120,56 @@
             }
         }
         }
+        // Merge any persisted state from GameService (e.g. IsConquered/Capital/Color) into our local cache
+        try
+        {
+            if (GameService.Countries != null && GameService.Countries.Count > 0)
+            {
+                foreach (var g in GameService.Countries)
+                {
+                    if (g == null) continue;
+                    // prefer code key if available
+                    if (!string.IsNullOrEmpty(g.Code))
+                    {
+                        if (_countryByKey.ContainsKey(g.Code))
+                        {
+                            var local = _countryByKey[g.Code];
+                            local.IsConquered = g.IsConquered;
+                            local.Color = g.Color;
+                            if (!string.IsNullOrEmpty(g.Capital)) local.Capital = g.Capital;
+                            if (!string.IsNullOrEmpty(g.Owner)) local.Owner = g.Owner;
+                        }
+                        else
+                        {
+                            // add a minimal entry so lookups by code succeed
+                            var added = new WorldConquestGame.Shared.Models.Country { Code = g.Code, Name = g.Name ?? (g.Code ?? string.Empty), IsConquered = g.IsConquered, Color = g.Color, Capital = g.Capital ?? string.Empty, Owner = g.Owner };
+                            _countryByKey[g.Code] = added;
+                            if (!string.IsNullOrEmpty(added.Name) && !_codeToName.ContainsKey(added.Code)) _codeToName[added.Code] = added.Name;
+                            if (!string.IsNullOrEmpty(added.Name) && !_countryByKey.ContainsKey(added.Name)) _countryByKey[added.Name] = added;
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(g.Name))
+                    {
+                        if (_countryByKey.ContainsKey(g.Name))
+                        {
+                            var local = _countryByKey[g.Name];
+                            local.IsConquered = g.IsConquered;
+                            local.Color = g.Color;
+                            if (!string.IsNullOrEmpty(g.Capital)) local.Capital = g.Capital;
+                            if (!string.IsNullOrEmpty(g.Owner)) local.Owner = g.Owner;
+                        }
+                        else
+                        {
+                            var added = new WorldConquestGame.Shared.Models.Country { Code = g.Code ?? string.Empty, Name = g.Name, IsConquered = g.IsConquered, Color = g.Color, Capital = g.Capital ?? string.Empty, Owner = g.Owner };
+                            if (!string.IsNullOrEmpty(added.Code) && !_countryByKey.ContainsKey(added.Code)) _countryByKey[added.Code] = added;
+                            if (!_countryByKey.ContainsKey(added.Name)) _countryByKey[added.Name] = added;
+                            if (!string.IsNullOrEmpty(added.Code) && !_codeToName.ContainsKey(added.Code)) _codeToName[added.Code] = added.Name;
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
         _countriesLoaded = true;
     }
 
@@ -135,10 +185,21 @@
         if (!_countriesLoaded)
         {
             var countries = await CountryService.GetAllAsync();
-            foreach (var c in countries)
+            if (countries != null)
             {
-                if (!string.IsNullOrEmpty(c.Code) && !_codeToName.ContainsKey(c.Code)) _codeToName[c.Code] = c.Name ?? string.Empty;
-                if (!string.IsNullOrEmpty(c.Name) && !_codeToName.ContainsKey(c.Name)) _codeToName[c.Name] = c.Name;
+                foreach (var c in countries)
+                {
+                    if (!string.IsNullOrEmpty(c.Code) && !_codeToName.ContainsKey(c.Code))
+                    {
+                        _codeToName[c.Code] = c.Name ?? string.Empty;
+                        if (!_countryByKey.ContainsKey(c.Code)) _countryByKey[c.Code] = c;
+                    }
+                    if (!string.IsNullOrEmpty(c.Name) && !_codeToName.ContainsKey(c.Name))
+                    {
+                        _codeToName[c.Name] = c.Name;
+                        if (!_countryByKey.ContainsKey(c.Name)) _countryByKey[c.Name] = c;
+                    }
+                }
             }
             _countriesLoaded = true;
         }
@@ -178,9 +239,29 @@
             CapitalAnswer = CurrentQuestion?.Answer ?? string.Empty;
         }
 
-    Visible = true;
-    await InvokeAsync(StateHasChanged);
-    _lastCountryId = id;
+        // If this country is already conquered in our local model, prefill the inputs with stored values
+        try
+        {
+            WorldConquestGame.Shared.Models.Country? clickedModel = null;
+            if (!string.IsNullOrEmpty(id) && _countryByKey.ContainsKey(id)) clickedModel = _countryByKey[id];
+            else if (!string.IsNullOrEmpty(id) && _codeToName.TryGetValue(id, out var rn) && _countryByKey.ContainsKey(rn)) clickedModel = _countryByKey[rn];
+            else if (!string.IsNullOrEmpty(id)) clickedModel = _countryByKey.Values.FirstOrDefault(c => c != null && (c.Code == id || c.Name == id));
+
+            if (clickedModel != null && clickedModel.IsConquered)
+            {
+                // show the country name so the user doesn't need to retype it
+                if (!string.IsNullOrEmpty(clickedModel.Name)) CountryAnswer = clickedModel.Name;
+                // if the capital was previously guessed and saved, show it too
+                if (!string.IsNullOrEmpty(clickedModel.Capital)) CapitalAnswer = clickedModel.Capital;
+                // treat as a non-auto question so inputs remain populated
+                _isAutoQuestion = false;
+            }
+        }
+        catch { }
+
+        Visible = true;
+        await InvokeAsync(StateHasChanged);
+        _lastCountryId = id;
 
     // move keyboard focus into the country name input for immediate typing
     try { await JS.InvokeVoidAsync("mapInterop.focusElement", "countryInput"); } catch { }
