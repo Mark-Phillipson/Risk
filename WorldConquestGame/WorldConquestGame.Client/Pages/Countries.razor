@@ -2,6 +2,7 @@
 @inject WorldConquestGame.Client.Services.CountryService CountryService
 @inject WorldConquestGame.Client.Services.GameService GameService
 @using Microsoft.AspNetCore.Components
+@inject IJSRuntime JS
 
 @code {
     [Parameter]
@@ -33,7 +34,7 @@
         <ul class="country-list" style="list-style:none;padding-left:0;margin:0;overflow:auto;flex:1 1 auto;">
             @foreach (var c in Filtered.OrderBy(x => x.Name))
             {
-                <li style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.03);">
+                <li style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.03);" @onclick="() => OnCountryClicked(c)">
                     @if (c.IsConquered)
                     {
                         <span class="conquered">@c.Name — <em>@(string.IsNullOrWhiteSpace(c.Capital) ? "(no capital)" : c.Capital)</em></span>
@@ -123,6 +124,23 @@
         }
         catch { }
         finally { _enrichingCapitals = false; }
+    }
+
+    private async Task OnCountryClicked(WorldConquestGame.Shared.Models.Country c)
+    {
+        if (c == null) return;
+        // Only zoom for conquered (guessed) countries
+        if (!c.IsConquered) return;
+        try
+        {
+            // prefer code (ISO) but fall back to name
+            var id = string.IsNullOrWhiteSpace(c.Code) ? c.Name : c.Code;
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                await JS.InvokeVoidAsync("mapInterop.zoomToCountry", id);
+            }
+        }
+        catch { }
     }
 
     private async Task Refresh()

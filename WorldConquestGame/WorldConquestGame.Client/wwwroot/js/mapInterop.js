@@ -174,6 +174,7 @@ window.mapInterop = {
                     // Log summary of known layer keys for debugging
                     var keys = Object.keys(window.mapInterop._layersById || {});
                     console.log('mapInterop: loaded geo layer, known layer keys count=', keys.length, ' sample=', keys.slice(0, 12));
+                        // Zoom the map to a specific country feature identified by id (code or name).
                 } catch (e) { }
                 // After loading geo layer, check for any pending continent zoom request stored in sessionStorage
                 try {
@@ -807,6 +808,76 @@ window.mapInterop = {
             }
             return true;
         } catch (e) { console.error('mapInterop.recomputeLabels error', e); return false; }
+    }
+
+    // Zoom the map to a specific country feature identified by id (code or name).
+    , zoomToCountry: function (id) {
+        try {
+            if (!id || !window.mapInterop._map || !window.mapInterop._geoLayer) return false;
+            // try direct lookup using stored keys
+            var layer = window.mapInterop._layersById[id] || window.mapInterop._layersById[(id || '').toUpperCase()] || window.mapInterop._layersById[(id || '').toLowerCase()];
+
+            // fallback: try to match by feature property name if direct lookup fails
+            if (!layer) {
+                try {
+                    var keys = Object.keys(window.mapInterop._layersById || {});
+                    for (var i = 0; i < keys.length; i++) {
+                        var cand = keys[i];
+                        var lay = window.mapInterop._layersById[cand];
+                        if (!lay || !lay.feature || !lay.feature.properties) continue;
+                        var name = lay.feature.properties.name || lay.feature.properties.NAME || lay.feature.properties.ADMIN || lay.feature.properties.admin || '';
+                        if (name && name.toString().toLowerCase() === id.toString().toLowerCase()) { layer = lay; break; }
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            if (!layer) {
+                console.warn('mapInterop.zoomToCountry: no layer found for', id);
+                return false;
+            }
+
+            var map = window.mapInterop._map;
+
+            // Prefer fitting to actual feature bounds when available
+            try {
+                if (layer.getBounds) {
+                    var bounds = layer.getBounds();
+                    if (bounds && bounds.isValid && bounds.isValid()) {
+                        map.fitBounds(bounds, { padding: [40, 40] });
+                        return true;
+                    }
+                }
+            } catch (e) { /* ignore fitBounds failures */ }
+
+            // Fallback: compute interior/centroid and set view
+            var center = null;
+            try {
+                if (window.turf) {
+                    var interior = window.mapInterop._getTurfInteriorPointForLargestPolygon(layer) || null;
+                    if (interior) center = interior;
+                }
+            } catch (e) { }
+            try { if (!center && map && layer && layer.getLatLngs) center = window.mapInterop._getLargestPolygonCenter(layer, map); } catch (e) { }
+            if (!center) {
+                try { if (layer.getBounds) center = layer.getBounds().getCenter(); else if (layer.getLatLng) center = layer.getLatLng(); } catch (e) { }
+            }
+
+            if (center && map) {
+                try {
+                    // Choose an appropriate zoom level — prefer a closer zoom for small features
+                    var targetZoom = 6;
+                    try {
+                        var cur = map.getZoom ? map.getZoom() : targetZoom;
+                        targetZoom = Math.max(4, Math.min(10, cur + 2));
+                    } catch (e) { }
+                    map.setView(center, targetZoom);
+                    return true;
+                } catch (e) {
+                    try { map.setView(center, 6); return true; } catch (ee) { }
+                }
+            }
+            return false;
+        } catch (e) { console.error('mapInterop.zoomToCountry error', e); return false; }
     }
 
     // Zoom the map to the bounding box of all features matching the provided continent name.
