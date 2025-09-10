@@ -18,21 +18,7 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
-      - name: Publish Blazor client
-        # Use repository-root-relative paths so the runner finds the project when the workflow
-        # is executed from the repo root (some runners mount the repo at /github/workspace).
-        run: dotnet publish ./WorldConquestGame/WorldConquestGame.Client/WorldConquestGame.Client.csproj -c Release -o ./WorldConquestGame/publish/Client
-
-      - name: Debug publish output
-        run: |
-          echo "Repository root: $(pwd)"
-          echo "Listing repo root entries:"
-          ls -la
-          echo "Listing WorldConquestGame folder:"
-          ls -la WorldConquestGame || true
-          echo "Listing publish output:"
-          ls -la WorldConquestGame/publish/Client/wwwroot || true
-          if [ -f WorldConquestGame/publish/Client/wwwroot/index.html ]; then echo "index.html found"; else echo "index.html NOT found"; fi
+  # Let the Static Web Apps action build the Blazor client project directly.
 
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
@@ -40,11 +26,7 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for GitHub integrations
           action: "upload"
-          # Point to the Blazor client project so Oryx can detect .NET correctly.
-          # This helps avoid platform-detection failures even when skip_app_build=true.
-          # Point to the Blazor client project directory relative to the repository root.
-          app_location: "./WorldConquestGame/WorldConquestGame.Client"
+          # Point the action at the Blazor client folder so it runs the build there.
+          app_location: "WorldConquestGame.Client"
           api_location: "" # no Azure Functions API in this repo
-          # Artifact path relative to the repository root (where the action runs).
-          app_artifact_location: "./WorldConquestGame/publish/Client/wwwroot" # the folder containing index.html after dotnet publish
-          skip_app_build: true
+          skip_app_build: false
