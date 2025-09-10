@@ -18,24 +18,18 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
-      # Debug: print the inputs the container sees and list app folder contents.
-      - name: Log Static Web Apps action inputs and files
-        run: |
-          echo "GITHUB_WORKSPACE=$(pwd)"
-          echo "Listing repo root:"
-          ls -la
-          echo "Listing WorldConquestGame.Client folder:"
-          ls -la WorldConquestGame.Client || true
-          echo "INPUT_* env vars:"; printenv | grep -i '^INPUT_' || true
+      - name: Publish Blazor client
+        run: dotnet publish ./WorldConquestGame.Client/WorldConquestGame.Client.csproj -c Release -o ./publish/Client
 
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for GitHub integrations
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          # Force the correct app location - this overrides any portal configuration
-          app_location: "./WorldConquestGame.Client"
+          # Use root location since portal is overriding app_location anyway
+          app_location: "/"
           api_location: ""
-          output_location: "wwwroot"
-          skip_app_build: false
+          # Point directly to the published wwwroot folder
+          app_artifact_location: "publish/Client/wwwroot"
+          skip_app_build: true
