@@ -1,4 +1,1 @@
----
-mode: agent
----
-please can you provide me with the powershell command to publish this application
+ because we've got server and shared projects I don't think this is just a normal wasm application is it suitable for publishing on azure static webapps or do I need to publish it to a web application instead?
