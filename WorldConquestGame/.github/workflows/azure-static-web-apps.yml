@@ -18,7 +18,15 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
-  # Let the Static Web Apps action build the Blazor client project directly.
+      # Debug: print the inputs the container sees and list app folder contents.
+      - name: Log Static Web Apps action inputs and files
+        run: |
+          echo "GITHUB_WORKSPACE=$(pwd)"
+          echo "Listing repo root:"
+          ls -la
+          echo "Listing WorldConquestGame.Client folder:"
+          ls -la WorldConquestGame.Client || true
+          echo "INPUT_* env vars:"; printenv | grep -i '^INPUT_' || true
 
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
