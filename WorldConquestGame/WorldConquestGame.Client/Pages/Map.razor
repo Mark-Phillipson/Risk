@@ -9,27 +9,49 @@
     <div style="position:absolute;top:0;left:0;bottom:0;z-index:2200;display:flex;align-items:stretch;">
         <div style="width:@(ShowCountries ? "320px" : "36px");height:100vh;background:white;border-right:1px solid #ddd;box-shadow:2px 0 6px rgba(0,0,0,0.08);overflow:hidden;transition:width 200ms ease;">
             <div style="display:flex;flex-direction:column;height:100%;">
-                <div style="display:flex;align-items:center;justify-content:flex-end;padding:6px;border-bottom:1px solid rgba(0,0,0,0.06);">
-                    <button class="btn btn-sm btn-outline-secondary" style="width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;" @onclick="() => ShowCountries = !ShowCountries">
-                        @if (ShowCountries)
-                        {
-                            <span>&#x25C0;</span> @* left-pointing chevron to collapse *@
-                        }
-                        else
-                        {
-                            <span>&#x25B6;</span> @* right-pointing chevron to expand *@
-                        }
-                    </button>
+                <div style="display:flex;align-items:center;justify-content:flex-end;padding:6px;border-bottom:1px solid rgba(0,0,0,0.06);gap:8px;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <button class="btn btn-sm btn-outline-secondary" style="width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;" @onclick="() => ShowCountries = !ShowCountries">
+                                @if (ShowCountries)
+                                {
+                                    <span>&#x25C0;</span> @* left-pointing chevron to collapse *@
+                                }
+                                else
+                                {
+                                    <span>&#x25B6;</span> @* right-pointing chevron to expand *@
+                                }
+                            </button>
+
+                            @* Refresh button — only visible when the countries panel is expanded to avoid hiding the chevron *@
+                            @if (ShowCountries)
+                            {
+                                <button class="btn btn-sm btn-outline-secondary" title="Refresh countries" @onclick="RefreshCountries" style="width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;">
+                                    @* simple refresh SVG *@
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 1v3l2-2-2-1z"/></svg>
+                                </button>
+                            }
+
+                            @* Show filter buttons only when the countries panel is expanded *@
+                            @if (ShowCountries)
+                            {
+                                <div class="btn-group" role="group" style="margin-left:4px;">
+                                    <button class="btn btn-sm btn-outline-secondary @GetActiveAll()" @onclick="SetCountriesFilterAll">All</button>
+                                    <button class="btn btn-sm btn-outline-secondary @GetActiveGuessed()" @onclick="SetCountriesFilterGuessed">Guessed</button>
+                                    <button class="btn btn-sm btn-outline-secondary @GetActiveUnguessed()" @onclick="SetCountriesFilterUnguessed">Unguessed</button>
+                                </div>
+                            }
+                        </div>
                 </div>
 
                 <div style="padding:8px;flex:1 1 auto;overflow:auto;">
                     @if (ShowCountries)
                     {
-                        <Countries Title="Countries" />
+                        <Countries @ref="CountriesRef" Title="Countries" />
                     }
                 </div>
             </div>
         </div>
+                @* Toggle returned to header inside the panel; removed absolute toggle. *@
     </div>
     <!-- Reset button removed from map overlay to avoid covering map controls -->
 
@@ -40,6 +62,7 @@
 @code {
     private DotNetObjectReference<Map>? objRef;
     private bool ShowCountries = false;
+    private Countries? CountriesRef;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -137,5 +160,38 @@
     public void Dispose()
     {
         objRef?.Dispose();
+    }
+
+    private void SetCountriesFilter(string name)
+    {
+        try
+        {
+            CountriesRef?.SetFilterByName(name);
+            // trigger UI refresh to update active button state
+            InvokeAsync(StateHasChanged);
+        }
+        catch { }
+    }
+
+    // Parameterless helpers used from Razor to avoid quoting issues
+    private void SetCountriesFilterAll() => SetCountriesFilter("All");
+    private void SetCountriesFilterGuessed() => SetCountriesFilter("Guessed");
+    private void SetCountriesFilterUnguessed() => SetCountriesFilter("Unguessed");
+
+    private string GetActiveAll() => CountriesRef != null && CountriesRef.GetCurrentFilterName() == "All" ? "active" : string.Empty;
+    private string GetActiveGuessed() => CountriesRef != null && CountriesRef.GetCurrentFilterName() == "Guessed" ? "active" : string.Empty;
+    private string GetActiveUnguessed() => CountriesRef != null && CountriesRef.GetCurrentFilterName() == "Unguessed" ? "active" : string.Empty;
+
+    private async Task RefreshCountries()
+    {
+        try
+        {
+            if (CountriesRef != null)
+            {
+                await CountriesRef.RefreshListAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch { }
     }
 }

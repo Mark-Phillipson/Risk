@@ -9,16 +9,64 @@
     public string? Title { get; set; } = "Countries";
 
     private string _search = string.Empty;
-    private IEnumerable<WorldConquestGame.Shared.Models.Country> Filtered =>
-        string.IsNullOrWhiteSpace(_search) || countries == null
-            ? (countries ?? Enumerable.Empty<WorldConquestGame.Shared.Models.Country>())
-            : countries.Where(c => (c.Name ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase) || (c.Capital ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase));
+    private enum CountryFilter { All, Guessed, Unguessed }
+    private CountryFilter _filter = CountryFilter.All;
+
+    private IEnumerable<WorldConquestGame.Shared.Models.Country> Filtered
+    {
+        get
+        {
+            if (countries == null) return Enumerable.Empty<WorldConquestGame.Shared.Models.Country>();
+
+            var query = countries.AsEnumerable();
+
+            // apply text search
+            if (!string.IsNullOrWhiteSpace(_search))
+            {
+                query = query.Where(c => (c.Name ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase)
+                                         || (c.Capital ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // apply guessed/unguessed filter
+            query = _filter switch
+            {
+                CountryFilter.Guessed => query.Where(c => c.IsConquered),
+                CountryFilter.Unguessed => query.Where(c => !c.IsConquered),
+                _ => query,
+            };
+
+            return query;
+        }
+    }
+
+    private void SetFilter(CountryFilter f)
+    {
+        if (_filter == f) return;
+        _filter = f;
+        InvokeAsync(StateHasChanged);
+    }
+
+    // Public API for parent components
+    public void SetFilterByName(string name)
+    {
+        if (Enum.TryParse<CountryFilter>(name, true, out var f)) SetFilter(f);
+    }
+
+    public string GetCurrentFilterName() => _filter.ToString();
+
+    public async Task RefreshListAsync()
+    {
+        await Refresh();
+        await InvokeAsync(StateHasChanged);
+    }
 }
 
 <div class="countries-component" style="display:flex;flex-direction:column;height:100%;">
     <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center;">
         <h4 style="margin:0;flex:0 0 auto;">@Title</h4>
         <input class="form-control" placeholder="Search country or capital" style="flex:1 1 auto;min-width:0;" @bind="_search" />
+
+    @* Filter buttons moved to parent (Map.razor) to use the wider header area. *@
     </div>
 
     @if (countries == null)
@@ -51,6 +99,7 @@
 
 <style>
     .conquered { text-decoration: line-through; color: #777; }
+    .btn-group .btn.active { background-color: #e9ecef; }
 </style>
 
 @code {
