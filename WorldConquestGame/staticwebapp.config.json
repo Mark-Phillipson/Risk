@@ -1,6 +1,0 @@
-{
-  "trailingSlash": "auto",
-  "platform": {
-    "apiRuntime": "dotnet:9.0"
-  }
-}
