@@ -34,7 +34,8 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for GitHub integrations
           action: "upload"
-          # Point the action at the Blazor client folder so it runs the build there.
-          app_location: "WorldConquestGame.Client"
-          api_location: "" # no Azure Functions API in this repo
+          # Force the correct app location - this overrides any portal configuration
+          app_location: "./WorldConquestGame.Client"
+          api_location: ""
+          output_location: "wwwroot"
           skip_app_build: false
