@@ -10,7 +10,16 @@
       "/css/*",
       "/images/*",
       "/favicon*",
-      "/*.map"
+      "/*.map",
+      "/*.css",
+      "/*.js",
+      "/*.wasm",
+      "/*.json",
+      "/*.png",
+      "/*.jpg",
+      "/*.jpeg",
+      "/*.svg",
+      "/*.ico"
     ]
   },
   "mimeTypes": {
