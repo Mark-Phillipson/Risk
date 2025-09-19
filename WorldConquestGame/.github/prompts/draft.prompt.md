@@ -1,1 +1,1 @@
-When the application loads can we please show this image centered in the screen for two seconds and then load the game can it be big enough to fill a desktop screen and centered.
+Please can we now do the same for the main layout component. using the same styles.
