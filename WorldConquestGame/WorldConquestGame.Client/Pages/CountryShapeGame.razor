@@ -63,7 +63,8 @@ else
                     <input @bind="_userAnswer" @onkeydown="OnAnswerKeyDown" 
                            placeholder="Enter country name..." 
                            class="form-control" 
-                           style="max-width: 300px; display: inline-block;" />
+                           style="max-width: 300px; display: inline-block;" 
+                           @ref="_answerInputRef" />
                     <button class="btn btn-primary" @onclick="SubmitAnswer" style="margin-left: 10px;">
                         Submit Answer
                     </button>
@@ -159,6 +160,7 @@ else
     private string _userAnswer = string.Empty;
     private string _feedback = string.Empty;
     private bool _lastAnswerCorrect = false;
+    private ElementReference _answerInputRef;
 
     protected override async Task OnInitializedAsync()
     {
@@ -213,17 +215,21 @@ else
         StateHasChanged();
         await Task.Delay(200); // Give DOM time to update
 
-        // Display the country shape on the map
-        await DisplayCountryShape(_currentCountry.Code);
+        // Display the country shape on the map. In hard mode we only want the shape (no base tiles)
+        var showBaseMap = !_isHardMode;
+        await DisplayCountryShape(_currentCountry.Code, showBaseMap);
+
+        // Focus the answer input so the keyboard is ready for the user
+        try { await _answerInputRef.FocusAsync(); } catch { /* ignore focus errors */ }
     }
 
-    private async Task DisplayCountryShape(string countryCode)
+    private async Task DisplayCountryShape(string countryCode, bool showBaseMap)
     {
         try
         {
             // Wait a bit for the DOM to be ready, then initialize map and show only the selected country
             await Task.Delay(100); // Give DOM time to render
-            await JS.InvokeVoidAsync("shapeGameInterop.displayCountryShape", "shape-map", countryCode);
+            await JS.InvokeVoidAsync("shapeGameInterop.displayCountryShape", "shape-map", countryCode, showBaseMap);
         }
         catch (Exception ex)
         {

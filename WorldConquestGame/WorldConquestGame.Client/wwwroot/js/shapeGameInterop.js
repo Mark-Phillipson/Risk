@@ -1,10 +1,11 @@
 window.shapeGameInterop = {
     _map: null,
     _currentLayer: null,
+    _tileLayer: null,
 
-    displayCountryShape: async function (elementId, countryCode) {
+    displayCountryShape: async function (elementId, countryCode, showBaseMap) {
         try {
-            // Check if element exists, wait if necessary
+            // Ensure we have an element to attach the map to (wait briefly if needed)
             let element = document.getElementById(elementId);
             let attempts = 0;
             while (!element && attempts < 20) { // Wait up to 2 seconds
@@ -12,10 +13,36 @@ window.shapeGameInterop = {
                 element = document.getElementById(elementId);
                 attempts++;
             }
-            
+
             if (!element) {
                 console.error('Map element not found:', elementId);
                 return;
+            }
+
+            // Create or update a simple visible overlay inside the map container for debugging
+            let overlayId = elementId + '-overlay';
+            let overlay = document.getElementById(overlayId);
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = overlayId;
+                // style to be visible but non-blocking
+                overlay.style.position = 'absolute';
+                overlay.style.top = '8px';
+                overlay.style.left = '8px';
+                overlay.style.zIndex = 650; // above leaflet panes
+                overlay.style.background = 'rgba(255,255,255,0.9)';
+                overlay.style.padding = '6px 8px';
+                overlay.style.borderRadius = '4px';
+                overlay.style.boxShadow = '0 1px 4px rgba(0,0,0,0.2)';
+                overlay.style.fontSize = '13px';
+                overlay.style.color = '#222';
+                overlay.innerText = 'Preparing map...';
+                // Ensure the container is position:relative so overlay absolute works
+                try { element.style.position = element.style.position || 'relative'; } catch (e) { }
+                element.appendChild(overlay);
+            } else {
+                overlay.style.display = 'block';
+                overlay.innerText = 'Preparing map...';
             }
 
             // Initialize map if not already done
@@ -31,49 +58,120 @@ window.shapeGameInterop = {
                     boxZoom: true
                 });
 
-                // Add a simple tile layer
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap contributors'
-                }).addTo(this._map);
+                // Create a tile layer and keep a reference to it. We'll toggle opacity to show/hide
+                try {
+                    this._tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '© OpenStreetMap contributors'
+                    }).addTo(this._map);
+                    // If we shouldn't show base tiles for this call, make it transparent
+                    if (!showBaseMap && this._tileLayer && typeof this._tileLayer.setOpacity === 'function') {
+                        try { this._tileLayer.setOpacity(0); } catch (e) { /* ignore */ }
+                    }
+                } catch (e) {
+                    console.warn('Unable to create tile layer:', e);
+                }
+
+                // Force a resize/invalidate after creation so tiles render when container size was changed
+                setTimeout(() => {
+                    try { this._map.invalidateSize(); } catch (e) { /* ignore */ }
+                }, 50);
+            } else {
+                // If the map already exists, toggle tile layer according to showBaseMap
+                try {
+                    // Toggle tile layer visibility by adjusting opacity - more reliable than removing/adding
+                    try {
+                        if (this._tileLayer && typeof this._tileLayer.setOpacity === 'function') {
+                            this._tileLayer.setOpacity(showBaseMap ? 1 : 0);
+                        } else if (showBaseMap && !this._tileLayer) {
+                            // fallback: create if missing
+                            this._tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                attribution: '© OpenStreetMap contributors'
+                            }).addTo(this._map);
+                        }
+                    } catch (e) { /* ignore */ }
+                    // ensure layout is recalculated
+                    this._map.invalidateSize();
+                } catch (e) { /* ignore */ }
             }
 
-            // Clear existing layers
+            // Clear existing country layer only (keep base tile layer)
             if (this._currentLayer) {
-                this._map.removeLayer(this._currentLayer);
+                try { this._map.removeLayer(this._currentLayer); } catch (e) { /* ignore */ }
                 this._currentLayer = null;
             }
 
-            // Load and display the specific country
+            // Load geojson and attempt a case-insensitive match for common iso fields
             const response = await fetch('data/countries.geojson');
             const geoData = await response.json();
 
-            // Find the specific country in the GeoJSON
-            const countryFeature = geoData.features.find(feature => 
-                feature.id === countryCode || 
-                (feature.properties && feature.properties.iso_a3 === countryCode)
-            );
+            const target = (countryCode || '').toString().toUpperCase();
+            const countryFeature = (geoData.features || []).find(feature => {
+                if (!feature) return false;
+                const fid = feature.id ? String(feature.id).toUpperCase() : null;
+                if (fid && fid === target) return true;
+                const props = feature.properties || {};
+                const candidateFields = [props.iso_a3, props.ISO_A3, props.adm0_a3, props.ADM0_A3, props['alpha-3'], props['A3'], props['cca3']];
+                for (let i = 0; i < candidateFields.length; i++) {
+                    const v = candidateFields[i];
+                    if (v && String(v).toUpperCase() === target) return true;
+                }
+                return false;
+            });
 
             if (countryFeature) {
+                try {
+                    console.log('shapeGameInterop: matched feature id=', countryFeature.id, 'props=', countryFeature.properties);
+                } catch (e) { }
                 // Create a layer for just this country
+                if (overlay) overlay.innerText = 'Country found: ' + target;
+                // Choose styling depending on whether base tiles are shown.
+                // In hard mode (no base map) we use a high-contrast thick red outline and transparent fill
+                // and bring the layer to front so the shape is clearly visible on a plain background.
+                const polygonStyle = (showBaseMap)
+                    ? { fillColor: '#3388ff', weight: 2, opacity: 1, color: '#3388ff', fillOpacity: 0.7 }
+                    : { fillColor: '#ff0000', weight: 4, opacity: 1, color: '#ff0000', fillOpacity: 0.0 };
+
                 this._currentLayer = L.geoJSON(countryFeature, {
-                    style: {
-                        fillColor: '#3388ff',
-                        weight: 2,
-                        opacity: 1,
-                        color: '#3388ff',
-                        fillOpacity: 0.7
-                    }
+                    style: polygonStyle
                 }).addTo(this._map);
 
-                // Fit the map to show the country
-                this._map.fitBounds(this._currentLayer.getBounds(), {
-                    padding: [20, 20],
-                    maxZoom: 6
-                });
+                try {
+                    // ensure the layer is rendered above tiles
+                    if (this._currentLayer && typeof this._currentLayer.bringToFront === 'function') {
+                        this._currentLayer.bringToFront();
+                    } else if (this._currentLayer && this._currentLayer.eachLayer) {
+                        this._currentLayer.eachLayer(function (l) { try { l.bringToFront(); } catch (e) { } });
+                    }
+                } catch (e) {
+                    console.warn('Error bringing country layer to front:', e);
+                }
+
+                // Fit the map to show the country, then ensure tiles render
+                try {
+                    const bounds = this._currentLayer.getBounds();
+                    if (bounds && bounds.isValid && bounds.isValid()) {
+                        this._map.fitBounds(bounds, { padding: [20, 20], maxZoom: 6 });
+                    } else {
+                        // fallback to world view
+                        this._map.setView([0, 0], 2);
+                    }
+                } catch (e) {
+                    // fallback
+                    this._map.setView([0, 0], 2);
+                }
+
+                // A small delay/invalidate helps Leaflet draw tiles when the container was just shown
+                setTimeout(() => {
+                    try { this._map.invalidateSize(); } catch (e) { /* ignore */ }
+                    // hide overlay after a short while
+                    try { if (overlay) overlay.style.display = 'none'; } catch (e) { }
+                }, 150);
+
             } else {
-                console.warn('Country not found:', countryCode);
-                // If country not found, show a placeholder message
+                console.warn('Country not found in geojson for code:', countryCode);
+                if (overlay) overlay.innerText = 'Country not found: ' + (countryCode || '');
                 this.showCountryNotFound(countryCode);
+                // keep overlay visible to indicate missing shape
             }
 
         } catch (error) {
@@ -82,34 +180,47 @@ window.shapeGameInterop = {
     },
 
     showCountryNotFound: function(countryCode) {
-        // Clear the map and show a message
-        if (this._currentLayer) {
-            this._map.removeLayer(this._currentLayer);
-            this._currentLayer = null;
-        }
-        
-        // Reset map view
-        this._map.setView([0, 0], 2);
-        
-        // You could add a popup or marker here to indicate the country wasn't found
-        console.log('Country shape not available for:', countryCode);
-    },
-
-    clearMap: function() {
-        if (this._map) {
+        try {
             if (this._currentLayer) {
                 this._map.removeLayer(this._currentLayer);
                 this._currentLayer = null;
             }
-            // Reset to world view
-            this._map.setView([0, 0], 2);
+            if (this._map) {
+                this._map.setView([0, 0], 2);
+                // show a popup hint on the map
+                try {
+                    L.popup({ closeOnClick: true, autoClose: true })
+                        .setLatLng([0, 0])
+                        .setContent('Shape not available: ' + (countryCode || ''))
+                        .openOn(this._map);
+                } catch (e) { /* ignore popup errors */ }
+            }
+            console.log('Country shape not available for:', countryCode);
+        } catch (e) {
+            console.warn('showCountryNotFound error:', e);
+        }
+    },
+
+    clearMap: function() {
+        if (this._map) {
+            try {
+                if (this._currentLayer) {
+                    this._map.removeLayer(this._currentLayer);
+                    this._currentLayer = null;
+                }
+                // Reset to world view and invalidate size
+                this._map.setView([0, 0], 2);
+                try { this._map.invalidateSize(); } catch (e) { /* ignore */ }
+            } catch (e) {
+                console.warn('clearMap error:', e);
+            }
         }
     },
 
     // Clean up when component is disposed
     dispose: function() {
         if (this._map) {
-            this._map.remove();
+            try { this._map.remove(); } catch (e) { /* ignore */ }
             this._map = null;
             this._currentLayer = null;
         }
