@@ -22,6 +22,15 @@ jobs:
         # Build the Blazor WebAssembly client with .NET 9 and output static files
         run: dotnet publish WorldConquestGame.Client/WorldConquestGame.Client.csproj -c Release -o ./publish_client
 
+      - name: Show publish artifact contents (diagnostic)
+        run: |
+          echo "==== Listing publish_client/wwwroot (top) ===="
+          ls -la publish_client/wwwroot || true
+          echo "==== Listing publish_client/wwwroot/_framework (top) ===="
+          ls -la publish_client/wwwroot/_framework || true
+          echo "==== index.html head ===="
+          head -n 120 publish_client/wwwroot/index.html || true
+
   # Let the Static Web Apps action build the Blazor client project directly.
 
       - name: Deploy to Azure Static Web Apps
