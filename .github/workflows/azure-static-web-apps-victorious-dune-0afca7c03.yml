@@ -20,9 +20,19 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Diagnose repo layout (helpful when project file not found)
+        run: |
+          echo "PWD: $(pwd)"
+          echo "Top-level files and folders:"
+          ls -la || true
+          echo "Looking for any .csproj files (max depth 3):"
+          find . -maxdepth 3 -type f -name '*.csproj' -print || true
+
       - name: Publish Blazor client
         # Build the Blazor WebAssembly client with .NET 8 and output static files
-        run: dotnet publish WorldConquestGame.Client/WorldConquestGame.Client.csproj -c Release -o ./publish_client
+        # Run the publish from inside the client folder to avoid path issues on Linux runners
+        working-directory: ./WorldConquestGame.Client
+        run: dotnet publish WorldConquestGame.Client.csproj -c Release -o ../publish_client
 
       - name: Show publish artifact contents (diagnostic)
         run: |
