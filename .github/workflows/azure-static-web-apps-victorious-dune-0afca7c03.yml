@@ -4,43 +4,48 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
-    branches:
-      - main
 
 jobs:
-  build_and_deploy_job:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+  build_and_deploy:
+    # Skip runs triggered by the Actions bot to prevent retrigger loops
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
-    name: Build and Deploy Job
+    name: Build and Deploy
     steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: true
-          lfs: false
-      - name: Build And Deploy
-        id: builddeploy
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_VICTORIOUS_DUNE_0AFCA7C03 }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
-          action: "upload"
-          ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
-          # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "./WorldConquestGame/WorldConquestGame.Client" # App source code path
-          api_location: "" # Api source code path - optional
-          output_location: "wwwroot" # Built app content directory - optional
-          ###### End of Repository/Build Configurations ######
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  close_pull_request_job:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
-    runs-on: ubuntu-latest
-    name: Close Pull Request Job
-    steps:
-      - name: Close Pull Request
-        id: closepullrequest
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish Blazor client
+        # Build the Blazor WebAssembly client with .NET 8 and output static files
+        run: dotnet publish WorldConquestGame.Client/WorldConquestGame.Client.csproj -c Release -o ./publish_client
+
+      - name: Show publish artifact contents (diagnostic)
+        run: |
+          echo "==== Listing publish_client/wwwroot (top) ===="
+          ls -la publish_client/wwwroot || true
+          echo "==== Listing publish_client/wwwroot/_framework (top) ===="
+          ls -la publish_client/wwwroot/_framework || true
+          echo "==== index.html head ===="
+          head -n 120 publish_client/wwwroot/index.html || true
+
+  # Let the Static Web Apps action build the Blazor client project directly.
+
+      - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         with:
+          # Use the configured Victorious secret for the SWA deployment token
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_VICTORIOUS_DUNE_0AFCA7C03 }}
-          action: "close"
+          repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for GitHub integrations
+          action: "upload"
+          # We're uploading a pre-built artifact produced by the publish step above.
+          # Use the upload action inputs: app_location is the app root (use "/") and
+          # app_artifact_location points to the folder that contains index.html.
+          app_location: "/"
+          app_artifact_location: "publish_client/wwwroot"
+          api_location: "" # no Azure Functions API in this repo
+          skip_app_build: true
