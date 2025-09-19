@@ -49,5 +49,8 @@ jobs:
           # the Blazor publish output produced by Oryx: bin/Release/net8.0/publish/wwwroot
           app_location: "WorldConquestGame/WorldConquestGame.Client"
           app_artifact_location: "bin/Release/net8.0/publish/wwwroot"
+          # Force the build step to use dotnet publish (package.json exists so Oryx
+          # may try to run a Node build). This runs inside app_location.
+          app_build_command: 'dotnet publish -c Release -o bin/Release/net8.0/publish'
           api_location: "" # no Azure Functions API in this repo
           skip_app_build: false
