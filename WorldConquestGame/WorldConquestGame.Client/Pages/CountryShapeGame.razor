@@ -1,0 +1,311 @@
+@page "/shape-game"
+@using Microsoft.AspNetCore.Components.Web
+@using System.Text.Json
+@using WorldConquestGame.Shared.Models
+@inject IJSRuntime JS
+@inject WorldConquestGame.Client.Services.CountryService CountryService
+@inject HttpClient Http
+
+<h3>Country Shape Guessing Game</h3>
+
+@if (!_gameStarted)
+{
+    <div class="game-setup">
+        <h4>Select Difficulty Level</h4>
+        <div class="difficulty-buttons">
+            <button class="btn btn-success" @onclick="() => StartGame(false)">
+                Easy Mode
+                <small class="d-block">Show capital as hint</small>
+            </button>
+            <button class="btn btn-warning" @onclick="() => StartGame(true)">
+                Hard Mode
+                <small class="d-block">Shape only</small>
+            </button>
+        </div>
+    </div>
+}
+else if (_gameComplete)
+{
+    <div class="game-complete">
+        <h4>Game Complete!</h4>
+        <p>Your final score: <strong>@_score out of @_totalQuestions</strong></p>
+        <p>Accuracy: <strong>@(Math.Round((double)_score / _totalQuestions * 100, 1))%</strong></p>
+        <button class="btn btn-primary" @onclick="ResetGame">Play Again</button>
+    </div>
+}
+else
+{
+    <div class="game-area">
+        <div class="game-header">
+            <div class="score-info">
+                Question @(_currentQuestionIndex + 1) of @_totalQuestions | Score: @_score
+            </div>
+            <div class="difficulty-badge">
+                <span class="badge @(_isHardMode ? "badge-warning" : "badge-success")">
+                    @(_isHardMode ? "Hard Mode" : "Easy Mode")
+                </span>
+            </div>
+        </div>
+
+        @if (_currentCountry != null)
+        {
+            <div class="question-section">
+                <h4>What country is this?</h4>
+                
+                @if (!_isHardMode && !string.IsNullOrEmpty(_currentCountry.Capital))
+                {
+                    <p class="hint">Hint: The capital is <strong>@_currentCountry.Capital</strong></p>
+                }
+
+                <div id="shape-map" style="height: 400px; border: 2px solid #ddd; margin: 20px 0;"></div>
+
+                <div class="answer-section">
+                    <input @bind="_userAnswer" @onkeydown="OnAnswerKeyDown" 
+                           placeholder="Enter country name..." 
+                           class="form-control" 
+                           style="max-width: 300px; display: inline-block;" 
+                           @ref="_answerInputRef" />
+                    <button class="btn btn-primary" @onclick="SubmitAnswer" style="margin-left: 10px;">
+                        Submit Answer
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_feedback))
+                {
+                    <div class="feedback @(_lastAnswerCorrect ? "text-success" : "text-danger")">
+                        @_feedback
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .game-setup {
+        text-align: center;
+        margin: 40px 0;
+    }
+
+    .difficulty-buttons {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        margin-top: 20px;
+    }
+
+    .difficulty-buttons .btn {
+        min-width: 150px;
+        min-height: 80px;
+        font-size: 1.1em;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 5px;
+    }
+
+    .score-info {
+        font-weight: bold;
+        font-size: 1.1em;
+    }
+
+    .question-section {
+        text-align: center;
+    }
+
+    .hint {
+        font-size: 1.1em;
+        color: #007bff;
+        margin: 10px 0;
+    }
+
+    .answer-section {
+        margin: 20px 0;
+    }
+
+    .feedback {
+        margin-top: 15px;
+        font-size: 1.1em;
+        font-weight: bold;
+    }
+
+    .game-complete {
+        text-align: center;
+        margin: 40px 0;
+    }
+
+    .game-complete h4 {
+        color: #28a745;
+        margin-bottom: 20px;
+    }
+</style>
+
+@code {
+    private bool _gameStarted = false;
+    private bool _gameComplete = false;
+    private bool _isHardMode = false;
+    private int _currentQuestionIndex = 0;
+    private int _totalQuestions = 10;
+    private int _score = 0;
+    
+    private List<WorldConquestGame.Shared.Models.Country> _allCountries = new();
+    private List<WorldConquestGame.Shared.Models.Country> _gameCountries = new();
+    private WorldConquestGame.Shared.Models.Country? _currentCountry = null;
+    private string _userAnswer = string.Empty;
+    private string _feedback = string.Empty;
+    private bool _lastAnswerCorrect = false;
+    private ElementReference _answerInputRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCountries();
+    }
+
+    private async Task LoadCountries()
+    {
+        try
+        {
+            _allCountries = await CountryService.GetAllAsync();
+            // Filter out countries without names or with very small/problematic shapes
+            _allCountries = _allCountries.Where(c => !string.IsNullOrEmpty(c.Name) && 
+                                                    !string.IsNullOrEmpty(c.Code) &&
+                                                    c.Name.Length > 2).ToList();
+        }
+        catch (Exception ex)
+        {
+            _feedback = $"Error loading countries: {ex.Message}";
+        }
+    }
+
+    private async Task StartGame(bool hardMode)
+    {
+        _isHardMode = hardMode;
+        _gameStarted = true;
+        _gameComplete = false;
+        _currentQuestionIndex = 0;
+        _score = 0;
+        _feedback = string.Empty;
+
+        // Select random countries for the game
+        var random = new Random();
+        _gameCountries = _allCountries.OrderBy(x => random.Next()).Take(_totalQuestions).ToList();
+        
+        await ShowNextQuestion();
+    }
+
+    private async Task ShowNextQuestion()
+    {
+        if (_currentQuestionIndex >= _gameCountries.Count)
+        {
+            _gameComplete = true;
+            return;
+        }
+
+        _currentCountry = _gameCountries[_currentQuestionIndex];
+        _userAnswer = string.Empty;
+        _feedback = string.Empty;
+
+        // Force a re-render before displaying the shape
+        StateHasChanged();
+        await Task.Delay(200); // Give DOM time to update
+
+        // Display the country shape on the map. In hard mode we only want the shape (no base tiles)
+        var showBaseMap = !_isHardMode;
+        await DisplayCountryShape(_currentCountry.Code, showBaseMap);
+
+        // Focus the answer input so the keyboard is ready for the user
+        try { await _answerInputRef.FocusAsync(); } catch { /* ignore focus errors */ }
+    }
+
+    private async Task DisplayCountryShape(string countryCode, bool showBaseMap)
+    {
+        try
+        {
+            // Wait a bit for the DOM to be ready, then initialize map and show only the selected country
+            await Task.Delay(100); // Give DOM time to render
+            await JS.InvokeVoidAsync("shapeGameInterop.displayCountryShape", "shape-map", countryCode, showBaseMap);
+        }
+        catch (Exception ex)
+        {
+            _feedback = $"Error displaying country shape: {ex.Message}";
+        }
+    }
+
+    private async Task SubmitAnswer()
+    {
+        if (string.IsNullOrWhiteSpace(_userAnswer) || _currentCountry == null)
+            return;
+
+        var normalizedAnswer = NormalizeAnswer(_userAnswer);
+        var normalizedCountryName = NormalizeAnswer(_currentCountry.Name);
+
+        _lastAnswerCorrect = string.Equals(normalizedAnswer, normalizedCountryName, StringComparison.OrdinalIgnoreCase);
+
+        if (_lastAnswerCorrect)
+        {
+            _score++;
+            _feedback = "Correct! Well done!";
+        }
+        else
+        {
+            _feedback = $"Incorrect. The correct answer is: {_currentCountry.Name}";
+        }
+
+        // Wait a moment to show feedback, then move to next question
+        StateHasChanged();
+        await Task.Delay(2000);
+        
+        _currentQuestionIndex++;
+        await ShowNextQuestion();
+    }
+
+    private static string NormalizeAnswer(string answer)
+    {
+        if (string.IsNullOrEmpty(answer)) return string.Empty;
+        
+        // Remove common words and normalize
+        return answer.Trim()
+                    .Replace("the ", "", StringComparison.OrdinalIgnoreCase)
+                    .Replace("republic of ", "", StringComparison.OrdinalIgnoreCase)
+                    .Replace("kingdom of ", "", StringComparison.OrdinalIgnoreCase)
+                    .Replace("united states of ", "usa", StringComparison.OrdinalIgnoreCase)
+                    .Replace("united states", "usa", StringComparison.OrdinalIgnoreCase)
+                    .Replace("united kingdom", "uk", StringComparison.OrdinalIgnoreCase)
+                    .Trim();
+    }
+
+    private async Task OnAnswerKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SubmitAnswer();
+        }
+    }
+
+    private async Task ResetGame()
+    {
+        _gameStarted = false;
+        _gameComplete = false;
+        _currentQuestionIndex = 0;
+        _score = 0;
+        _userAnswer = string.Empty;
+        _feedback = string.Empty;
+        _currentCountry = null;
+        
+        // Clear the map
+        try
+        {
+            await JS.InvokeVoidAsync("shapeGameInterop.clearMap");
+        }
+        catch
+        {
+            // Ignore errors when clearing map
+        }
+    }
+}
