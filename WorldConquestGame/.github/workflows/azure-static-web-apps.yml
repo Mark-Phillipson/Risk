@@ -32,9 +32,9 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for GitHub integrations
           action: "upload"
           # We're uploading a pre-built artifact produced by the publish step above.
-          # The publish output places the Blazor site under `publish_client/wwwroot` so
-          # point `app_location` at that folder (the action expects the folder that
-          # contains index.html).
-          app_location: "publish_client/wwwroot"
+          # Use the upload action inputs: app_location is the app root (use "/") and
+          # app_artifact_location points to the folder that contains index.html.
+          app_location: "/"
+          app_artifact_location: "publish_client/wwwroot"
           api_location: "" # no Azure Functions API in this repo
           skip_app_build: true
