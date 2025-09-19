@@ -7,7 +7,12 @@ on:
 
 jobs:
   build_and_deploy:
+    # Skip runs triggered by the Actions bot to prevent retrigger loops
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
     name: Build and Deploy
     steps:
       - name: Checkout
