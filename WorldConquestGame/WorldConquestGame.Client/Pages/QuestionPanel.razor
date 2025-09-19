@@ -70,7 +70,7 @@
     private string CountryAnswer = string.Empty;
     private string CapitalAnswer = string.Empty;
     private bool Visible = false;
-    private string? _lastCountryId;
+    private string _lastCountryId = string.Empty;
 
     private readonly Dictionary<string, Question> _questions = new()
     {
@@ -84,7 +84,7 @@
 
     private bool _countriesLoaded = false;
     private bool _isAutoQuestion = false;
-    private bool _showAddCustom = false;
+    // removed _showAddCustom (was unused)
     private string CustomQuestionText = string.Empty;
     private string CustomQuestionAnswer = string.Empty;
     private bool _shake = false;
@@ -143,7 +143,8 @@
                         {
                             // add a minimal entry so lookups by code succeed
                             var added = new WorldConquestGame.Shared.Models.Country { Code = g.Code, Name = g.Name ?? (g.Code ?? string.Empty), IsConquered = g.IsConquered, Color = g.Color, Capital = g.Capital ?? string.Empty, Owner = g.Owner };
-                            _countryByKey[g.Code] = added;
+                            var codeKey = g.Code ?? string.Empty;
+                            if (!string.IsNullOrEmpty(codeKey)) _countryByKey[codeKey] = added;
                             if (!string.IsNullOrEmpty(added.Name) && !_codeToName.ContainsKey(added.Code)) _codeToName[added.Code] = added.Name;
                             if (!string.IsNullOrEmpty(added.Name) && !_countryByKey.ContainsKey(added.Name)) _countryByKey[added.Name] = added;
                         }
@@ -484,8 +485,7 @@
 
         // set as current
         CurrentQuestion = q;
-        _isAutoQuestion = false;
-        _showAddCustom = false;
+    _isAutoQuestion = false;
         CustomQuestionText = string.Empty;
         CustomQuestionAnswer = string.Empty;
     // clear inputs
