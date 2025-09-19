@@ -1,7 +1,9 @@
+/* Geography-themed Main Layout Styles */
 .page {
     position: relative;
     display: flex;
     flex-direction: column;
+    min-height: 100vh;
 }
 
 main {
@@ -12,86 +14,207 @@ main {
     background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
 }
 
+/* Geography-themed top navigation bar */
 .top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
-    justify-content: flex-end;
-    height: 3.5rem;
+    background: linear-gradient(135deg, #2c5530 0%, #4a7c59 100%);
+    border-bottom: 3px solid #1e3a23;
+    justify-content: flex-start;
+    height: 4rem;
     display: flex;
     align-items: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle pattern overlay */
+.top-row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='20' cy='20' r='2'/%3E%3C/g%3E%3C/svg%3E");
+    opacity: 0.5;
 }
 
 .top-row .page-title {
     margin: 0;
-    /* remove default h1 margin */
     font-size: 1.75rem;
-    /* large header size */
     font-weight: 700;
-    /* bold */
-    color: #111;
-    /* strong color */
+    color: white;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     margin-right: auto;
-    /* push the link to the right while keeping on same line */
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
-.top-row ::deep a,
-.top-row ::deep .btn-link {
-    white-space: nowrap;
-    margin-left: 1.5rem;
+.top-row .page-title i {
+    font-size: 1.5rem;
+    color: #a8d8a8;
+}
+
+/* Continent navigation buttons */
+.continent-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+}
+
+.geo-continent-btn {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    font-weight: 500;
+    border-radius: 20px;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    transition: all 0.3s ease;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.geo-continent-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.geo-continent-btn i {
+    font-size: 0.75rem;
+}
+
+.geo-reset-btn {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    border: 1px solid #c0392b;
+    color: white;
+    font-weight: 500;
+    border-radius: 20px;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.geo-reset-btn:hover {
+    background: linear-gradient(135deg, #c0392b, #a93226);
+    border-color: #a93226;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Navigation links */
+.nav-links {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-left: auto;
+    position: relative;
+    z-index: 1;
+}
+
+.geo-nav-link {
+    color: white;
     text-decoration: none;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: 25px;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.top-row ::deep a:hover,
-.top-row ::deep .btn-link:hover {
-    text-decoration: underline;
+.geo-nav-link.conquest {
+    background: rgba(231, 76, 60, 0.2);
 }
 
-.top-row ::deep a:first-child {
-    overflow: hidden;
-    text-overflow: ellipsis;
+.geo-nav-link.learn {
+    background: rgba(52, 152, 219, 0.2);
 }
 
-@media (max-width: 640.98px) {
-    .top-row {
-        justify-content: space-between;
+.geo-nav-link:hover {
+    color: white;
+    text-decoration: none;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.geo-nav-link.conquest:hover {
+    background: rgba(231, 76, 60, 0.3);
+    border-color: rgba(231, 76, 60, 0.5);
+}
+
+.geo-nav-link.learn:hover {
+    background: rgba(52, 152, 219, 0.3);
+    border-color: rgba(52, 152, 219, 0.5);
+}
+
+/* Content area */
+.content {
+    padding: 1.5rem;
+    background: #f8f9fa;
+    min-height: calc(100vh - 4rem);
+}
+
+/* Responsive design */
+@media (max-width: 1200px) {
+    .continent-buttons {
+        gap: 0.25rem;
     }
+    
+    .geo-continent-btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+    
+    .geo-continent-btn i {
+        display: none;
+    }
+}
 
-    .top-row ::deep a,
-    .top-row ::deep .btn-link {
+@media (max-width: 768px) {
+    .top-row {
+        flex-direction: column;
+        height: auto;
+        padding: 1rem;
+        gap: 1rem;
+    }
+    
+    .continent-buttons {
+        order: 2;
+        justify-content: center;
+    }
+    
+    .nav-links {
         margin-left: 0;
+        order: 3;
     }
-}
-
-@media (min-width: 641px) {
-    .page {
-        flex-direction: row;
-    }
-
-    .sidebar {
-        width: 250px;
-        height: 100vh;
-        position: sticky;
-        top: 0;
-    }
-
-    .top-row {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-    }
-
-    .top-row.auth ::deep a:first-child {
-        flex: 1;
-        text-align: right;
-        width: 0;
-    }
-
-    .top-row,
-    article {
-        padding-left: 2rem !important;
-        padding-right: 1.5rem !important;
+    
+    .page-title {
+        order: 1;
+        margin-right: 0 !important;
+        text-align: center;
     }
 }
