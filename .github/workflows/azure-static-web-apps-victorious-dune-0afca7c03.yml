@@ -48,6 +48,17 @@ jobs:
 
   # Let the Static Web Apps action build the Blazor client project directly.
 
+      - name: Pre-deploy diagnostics (confirm artifact exists)
+        run: |
+          echo "Repo PWD: $(pwd)"
+          echo "Absolute path to publish_client: $(realpath publish_client || true)"
+          echo "Listing publish_client contents:"
+          ls -la publish_client || true
+          echo "Listing publish_client/wwwroot contents:"
+          ls -la publish_client/wwwroot || true
+          echo "Stat index.html if present:"
+          stat publish_client/wwwroot/index.html || true
+
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         with:
@@ -59,6 +70,6 @@ jobs:
           # Use the upload action inputs: app_location is the app root (use "/") and
           # app_artifact_location points to the folder that contains index.html.
           app_location: "/"
-          app_artifact_location: "publish_client/wwwroot"
+          app_artifact_location: "./publish_client/wwwroot"
           api_location: "" # no Azure Functions API in this repo
           skip_app_build: true
