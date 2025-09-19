@@ -15,13 +15,16 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <!-- Leaflet CSS (local) -->
     <link rel="stylesheet" href="lib/leaflet/leaflet.css" />
-    <!-- Primary custom favicon (use this file for the site's favicon) -->
-    <link rel="icon" type="image/png" href="/FavoriteIcon.png" />
-    <link rel="shortcut icon" href="/FavoriteIcon.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/FavoriteIcon.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/FavoriteIcon.png" />
+    <!-- Primary custom favicon (use the provided FavoriteIcon image). -->
+    <!-- Also include an explicit /favicon.ico for browsers that request it. -->
+    <!-- Cache-bust query string added so browsers will re-request the updated images. -->
+    <link rel="icon" href="/favicon.ico?v=3" />
+    <link rel="shortcut icon" href="/favicon.ico?v=3" />
+    <link rel="icon" href="/FavoriteIcon.png?v=3" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/FavoriteIcon.png?v=3" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/FavoriteIcon.png?v=3" />
     <!-- Fallback icons / touch icons -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/FavoriteIcon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/FavoriteIcon.png?v=3" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link href="WorldConquestGame.Client.styles.css" rel="stylesheet" />
 </head>
