@@ -1,9 +1,9 @@
+/* Geography-themed Map Page Styles */
 .map-page {
-    /* Make the page container a column flex so header and map can size correctly */
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 0px);
-    /* fill viewport height; adjust if you have app chrome height */
+    height: calc(100vh - 4rem); /* Subtract header height */
+    position: relative;
 }
 
 .map-page h3 {
@@ -11,14 +11,204 @@
 }
 
 .map {
-    /* Allow map to grow and fill remaining space */
     flex: 1 1 auto;
     min-height: 0;
-    /* important for flex children so overflow works */
+    position: relative;
 }
 
-/* Ensure the map div and its children occupy full width */
 #map {
     width: 100%;
     height: 100%;
+}
+
+/* Sidebar Container */
+.sidebar-container {
+    position: absolute;
+    /* sit further under the app header so the toggle doesn't touch the header or map controls */
+    top: 5rem; /* increased from 4rem */
+    left: 0;
+    bottom: 0;
+    z-index: 2200;
+    display: flex;
+    align-items: stretch;
+    pointer-events: none; /* Allow map interaction behind */
+}
+
+.sidebar-panel {
+    /* make the panel height match the space beneath the header (matches top offset) */
+    height: calc(100vh - 5rem);
+    background: rgba(255, 255, 255, 0.95);
+    border-right: 1px solid #4a7c59;
+    box-shadow: 2px 0 15px rgba(44, 85, 48, 0.15);
+    overflow: hidden;
+    transition: width 300ms ease;
+    pointer-events: auto; /* Re-enable for sidebar content */
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}
+
+/* Ensure Leaflet zoom control floats above the collapsed sidebar toggle */
+.leaflet-control-zoom {
+    z-index: 2301;
+}
+
+/* Small-screen tweak: header may be slightly shorter on mobile/folded chrome */
+@media (max-width: 768px) {
+    .sidebar-container {
+        /* mobile header may be slightly smaller but keep a safe offset */
+        top: 4.25rem;
+    }
+    .sidebar-panel {
+        height: calc(100vh - 4.25rem);
+    }
+}
+
+.sidebar-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Sidebar Header */
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(74, 124, 89, 0.1);
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    gap: 0.5rem;
+}
+
+.sidebar-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Geography-themed sidebar buttons */
+.geo-sidebar-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(74, 124, 89, 0.1);
+    border: 0.5px solid rgba(74, 124, 89, 0.3);
+    color: #2c5530;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    font-weight: 600;
+}
+
+.geo-sidebar-btn:hover {
+    background: rgba(74, 124, 89, 0.2);
+    border-color: rgba(74, 124, 89, 0.5);
+    color: #2c5530;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(44, 85, 48, 0.2);
+}
+
+.toggle-btn {
+    background: linear-gradient(135deg, #4a7c59, #2c5530);
+    border-color: #2c5530;
+    color: white;
+}
+
+.toggle-btn:hover {
+    background: linear-gradient(135deg, #2c5530, #1e3a23);
+    border-color: #1e3a23;
+    color: white;
+}
+
+/* Filter buttons */
+.filter-group {
+    margin-left: 0.5rem;
+}
+
+.geo-filter-btn {
+    background: rgba(255, 255, 255, 0.8);
+    border: 0.5px solid rgba(74, 124, 89, 0.3);
+    color: #2c5530;
+    font-weight: 500;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    transition: all 0.3s ease;
+}
+
+.geo-filter-btn:hover {
+    background: rgba(74, 124, 89, 0.1);
+    border-color: rgba(74, 124, 89, 0.5);
+    color: #2c5530;
+}
+
+.geo-filter-btn.active {
+    background: linear-gradient(135deg, #4a7c59, #2c5530);
+    border-color: #2c5530;
+    color: white;
+    box-shadow: 0 2px 8px rgba(44, 85, 48, 0.3);
+}
+
+.geo-filter-btn.active:hover {
+    background: linear-gradient(135deg, #2c5530, #1e3a23);
+    color: white;
+}
+
+/* Sidebar Body */
+.sidebar-body {
+    padding: 1rem;
+    flex: 1 1 auto;
+    overflow: auto;
+    background: rgba(255, 255, 255, 0.9);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .sidebar-panel {
+        width: 100% !important;
+        max-width: 300px;
+    }
+    
+    .sidebar-header {
+        padding: 0.5rem;
+    }
+    
+    .sidebar-controls {
+        gap: 0.25rem;
+    }
+    
+    .filter-group {
+        margin-left: 0.25rem;
+    }
+    
+    .geo-filter-btn {
+        font-size: 0.6rem;
+        padding: 0.2rem 0.5rem;
+    }
+}
+
+/* Floating toggle button placed bottom-left so it never collides with Leaflet zoom */
+.floating-toggle {
+    position: fixed;
+    left: 12px;
+    bottom: 18px;
+    z-index: 2310;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg,#4a7c59,#2c5530);
+    color: white;
+    border: 0.5px solid rgba(0,0,0,0.15);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    cursor: pointer;
+}
+
+.floating-toggle i { font-size: 1.1rem; }
+
+@media (max-width: 768px) {
+    .floating-toggle { left: 8px; bottom: 12px; width: 40px; height: 40px; }
 }
