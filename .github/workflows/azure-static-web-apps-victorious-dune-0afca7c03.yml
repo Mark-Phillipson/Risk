@@ -30,9 +30,12 @@ jobs:
 
       - name: Publish Blazor client
         # Build the Blazor WebAssembly client with .NET 8 and output static files
-        # Run the publish from inside the client folder to avoid path issues on Linux runners
-        working-directory: ./WorldConquestGame.Client
-        run: dotnet publish WorldConquestGame.Client.csproj -c Release -o ../publish_client
+        # The repository contains a top-level folder named 'WorldConquestGame' so the
+        # client project lives at WorldConquestGame/WorldConquestGame.Client. Run from
+        # that folder and publish back to the repo root's publish_client folder so the
+        # deploy action can pick up publish_client/wwwroot.
+        working-directory: ./WorldConquestGame/WorldConquestGame.Client
+        run: dotnet publish WorldConquestGame.Client.csproj -c Release -o ../../publish_client
 
       - name: Show publish artifact contents (diagnostic)
         run: |
