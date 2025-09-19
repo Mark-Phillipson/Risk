@@ -16,10 +16,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '8.0.x'
 
       - name: Publish Blazor client
-        # Build the Blazor WebAssembly client with .NET 9 and output static files
+        # Build the Blazor WebAssembly client with .NET 8 and output static files
         run: dotnet publish WorldConquestGame.Client/WorldConquestGame.Client.csproj -c Release -o ./publish_client
 
       - name: Show publish artifact contents (diagnostic)

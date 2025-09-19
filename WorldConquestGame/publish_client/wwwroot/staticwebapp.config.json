@@ -1,0 +1,12 @@
+{
+  "routes": [
+    {
+      "route": "/*",
+      "rewrite": "/index.html"
+    }
+  ],
+  "responseOverrides": {},
+  "mimeTypes": {
+    ".wasm": "application/wasm"
+  }
+}
