@@ -18,18 +18,20 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
+      - name: Publish Blazor client
+        # Build the Blazor WebAssembly client with .NET 9 and output static files
+        run: dotnet publish WorldConquestGame.Client/WorldConquestGame.Client.csproj -c Release -o ./publish_client
+
   # Let the Static Web Apps action build the Blazor client project directly.
 
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         with:
-          # Try the canonical secret name first, then fall back to the two existing
-          # repository secrets (they were created earlier with generated suffixes).
-          # This avoids a hard failure when the exact secret name isn't present.
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN || secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_VICTORIOUS_DUNE_0AFCA7C03 || secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ZEALOUS_HILL_03F014A03 }}
+          # Use the configured Victorious secret for the SWA deployment token
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_VICTORIOUS_DUNE_0AFCA7C03 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for GitHub integrations
           action: "upload"
-          # Point the action at the Blazor client folder so it runs the build there.
-          app_location: "WorldConquestGame.Client"
+          # We're uploading a pre-built artifact produced by the publish step above
+          app_location: "publish_client"
           api_location: "" # no Azure Functions API in this repo
-          skip_app_build: false
+          skip_app_build: true
