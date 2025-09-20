@@ -20,22 +20,23 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish Blazor client
-        # Build the Blazor WebAssembly client with .NET 8 and output static files
-        run: dotnet publish WorldConquestGame.Client/WorldConquestGame.Client.csproj -c Release -o ./publish_client
-
-      - name: Show publish artifact contents (diagnostic)
+      - name: Diagnose repo layout (helpful when project file not found)
         run: |
-          echo "==== Listing publish_client/wwwroot (top) ===="
-          ls -la publish_client/wwwroot || true
-          echo "==== Listing publish_client/wwwroot/_framework (top) ===="
-          ls -la publish_client/wwwroot/_framework || true
-          echo "==== index.html head ===="
-          head -n 120 publish_client/wwwroot/index.html || true
+          echo "PWD: $(pwd)"
+          echo "Top-level files and folders:"
+          ls -la || true
+          echo "Looking for any .csproj files (max depth 3):"
+          find . -maxdepth 3 -type f -name '*.csproj' -print || true
 
-  # Let the Static Web Apps action build the Blazor client project directly.
+      - name: Confirm client project location (SWA will build this)
+        run: |
+          echo "PWD: $(pwd)"
+          echo "Client folder contents (WorldConquestGame/WorldConquestGame.Client):"
+          ls -la WorldConquestGame/WorldConquestGame.Client || true
+          echo "Project file:" 
+          ls -la WorldConquestGame/WorldConquestGame.Client/*.csproj || true
 
-      - name: Deploy to Azure Static Web Apps
+      - name: Deploy to Azure Static Web Apps (let action build the app)
         uses: Azure/static-web-apps-deploy@v1
         with:
           # Use the configured Victorious secret for the SWA deployment token
@@ -43,9 +44,13 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for GitHub integrations
           action: "upload"
           # We're uploading a pre-built artifact produced by the publish step above.
-          # Use the upload action inputs: app_location is the app root (use "/") and
-          # app_artifact_location points to the folder that contains index.html.
-          app_location: "/"
-          app_artifact_location: "publish_client/wwwroot"
+          # Instead of pre-building, let the SWA action build the Blazor client.
+          # app_location is the client folder and app_artifact_location points to
+          # the Blazor publish output produced by Oryx: bin/Release/net8.0/publish/wwwroot
+          app_location: "WorldConquestGame/WorldConquestGame.Client"
+          app_artifact_location: "bin/Release/net8.0/publish/wwwroot"
+          # Force the build step to use dotnet publish (package.json exists so Oryx
+          # may try to run a Node build). This runs inside app_location.
+          app_build_command: 'dotnet publish -c Release -o bin/Release/net8.0/publish'
           api_location: "" # no Azure Functions API in this repo
-          skip_app_build: true
+          skip_app_build: false
