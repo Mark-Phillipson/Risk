@@ -12,5 +12,7 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 builder.Services.AddScoped<WorldConquestGame.Client.Services.CountryService>();
 builder.Services.AddScoped<WorldConquestGame.Client.Services.GameService>();
 builder.Services.AddScoped<WorldConquestGame.Client.Services.StorageService>();
+builder.Services.AddScoped<WorldConquestGame.Client.Services.UkCountyService>();
+builder.Services.AddScoped<WorldConquestGame.Client.Services.UkCountyGameService>();
 
 await builder.Build().RunAsync();

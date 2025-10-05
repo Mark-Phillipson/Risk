@@ -1,0 +1,163 @@
+@page "/uk-counties"
+@using System.Linq
+@using WorldConquestGame.Shared.Models
+@using CountryModel = WorldConquestGame.Shared.Models.Country
+@inject IJSRuntime JS
+@inject WorldConquestGame.Client.Services.UkCountyGameService CountyGameService
+@inject WorldConquestGame.Client.Services.StorageService StorageService
+@inject WorldConquestGame.Client.Services.UkCountyService CountyService
+@implements IDisposable
+
+<div class="map-page">
+    <div id="county-map" class="map"></div>
+    <div class="sidebar-container">
+        <div class="sidebar-panel" style="width:@(ShowList ? "320px" : "36px");">
+            <div class="sidebar-content">
+                <div class="sidebar-body">
+                    @if (ShowList)
+                    {
+                        <UkCountyList @ref="CountyListRef" />
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="floating-toggle" title="Toggle counties panel" @onclick="ToggleList">
+        @if (ShowList)
+        {
+            <i class="bi bi-chevron-left"></i>
+        }
+        else
+        {
+            <i class="bi bi-list"></i>
+        }
+    </button>
+
+    <UkCountyQuestionPanel />
+</div>
+
+@code {
+    private DotNetObjectReference<UkCountiesMap>? objRef;
+    private bool ShowList = true;
+    private UkCountyList? CountyListRef;
+    private bool _initialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            objRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("sessionStorage.setItem", "showCountryLabels", "false");
+            await JS.InvokeVoidAsync("mapInterop.initMap", "county-map", "data/uk-counties.geojson", objRef);
+            await EnsureCountiesLoadedAsync();
+            CountyGameService.CountyConquered += OnCountyConquered;
+
+            try
+            {
+                var moved = await JS.InvokeAsync<bool>("mapInterop.setView", 55.0, -2.8, 5.6);
+                if (!moved)
+                {
+                    await Task.Delay(250);
+                    await JS.InvokeAsync<bool>("mapInterop.setView", 55.0, -2.8, 5.6);
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                var persisted = await StorageService.LoadUkCountiesAsync();
+                if (persisted != null && persisted.Count > 0)
+                {
+                    CountyGameService.MergePersistedCounties(persisted);
+
+                    var ids = new List<string>();
+                    var colors = new List<string>();
+                    foreach (var county in persisted.Where(p => p.IsConquered && !string.IsNullOrEmpty(p.Code)))
+                    {
+                        ids.Add(county.Code!);
+                        colors.Add(string.IsNullOrEmpty(county.Color) ? "#ffcc00" : county.Color!);
+                    }
+
+                    if (ids.Count > 0)
+                    {
+                        await JS.InvokeAsync<object?>("mapInterop.setCountryConqueredAny", ids.ToArray(), colors.ToArray());
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            if (CountyGameService.Players.Count == 0)
+            {
+                CountyGameService.Players.Add(new Player { Name = "Player 1" });
+                CountyGameService.Players.Add(new Player { Name = "Player 2" });
+            }
+
+            _initialized = true;
+        }
+    }
+
+    [JSInvokable]
+    public Task OnCountryClicked(string id)
+    {
+        CountyGameService.RaiseCountyClicked(id);
+        return Task.CompletedTask;
+    }
+
+    private void ToggleList()
+    {
+        ShowList = !ShowList;
+    }
+
+    private async Task EnsureCountiesLoadedAsync()
+    {
+        if (_initialized) return;
+
+        try
+        {
+            var counties = await CountyService.GetAllAsync();
+            if (counties != null && counties.Count > 0)
+            {
+                CountyGameService.Counties = counties;
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private void OnCountyConquered(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return;
+
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                var counties = CountyGameService.Counties;
+                var match = counties.FirstOrDefault(c => string.Equals(c.Code, id, StringComparison.OrdinalIgnoreCase) || string.Equals(c.Name, id, StringComparison.OrdinalIgnoreCase));
+                var color = match?.Color;
+                if (string.IsNullOrEmpty(color)) color = "#28a745";
+                await JS.InvokeAsync<object?>("mapInterop.setCountryConqueredAny", new[] { id }, new[] { color });
+                if (match != null && !string.Equals(match.Code, id, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(match.Code))
+                {
+                    await JS.InvokeAsync<object?>("mapInterop.setCountryConqueredAny", new[] { match.Code }, new[] { color });
+                }
+                await StorageService.SaveUkCountiesAsync(counties);
+            }
+            catch
+            {
+            }
+        });
+    }
+
+    public void Dispose()
+    {
+        CountyGameService.CountyConquered -= OnCountyConquered;
+        objRef?.Dispose();
+    }
+}

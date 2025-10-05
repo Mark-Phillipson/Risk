@@ -1,0 +1,251 @@
+@using System.Linq
+@using System.Text
+@using System.Text.RegularExpressions
+@using System.Threading.Tasks
+@using Microsoft.AspNetCore.Components.Web
+@using CountryModel = WorldConquestGame.Shared.Models.Country
+@inject WorldConquestGame.Client.Services.UkCountyGameService CountyGameService
+@inject WorldConquestGame.Client.Services.UkCountyService CountyService
+@inject WorldConquestGame.Client.Services.StorageService StorageService
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="question-panel @( _shake ? "shake" : string.Empty)" style="display:@(Visible ? "block" : "none"); position:fixed; top:1rem; right:1rem; z-index:2000; background:#fff; padding:1rem; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:260px;">
+    <h4>@PanelTitle</h4>
+    <div style="display:flex; flex-direction:column; gap:0.35rem;">
+    <input id="ukCountyAnswer" @bind-value="CountyAnswer" @bind-value:event="oninput" placeholder="County name" @onkeydown="OnAnswerKeyDown" />
+    </div>
+    <div style="margin-top:0.5rem; display:flex; gap:0.5rem;">
+        <button class="btn btn-primary" @onclick="SubmitAnswer">Submit</button>
+        <button class="btn btn-secondary" @onclick="Close">Close</button>
+    </div>
+    @if (_showIncorrect)
+    {
+        <div class="incorrect-msg">Incorrect — try again.</div>
+    }
+</div>
+
+@if (_toastVisible)
+{
+    <div class="toast @( _toastSuccess ? "toast-success" : "toast-error")">@_toastMessage</div>
+}
+
+<style>
+    @@keyframes qc-shake {
+        0% { transform: translateX(0); }
+        20% { transform: translateX(-8px); }
+        40% { transform: translateX(8px); }
+        60% { transform: translateX(-6px); }
+        80% { transform: translateX(6px); }
+        100% { transform: translateX(0); }
+    }
+    .question-panel.shake {
+        animation: qc-shake 0.30s ease-in-out;
+    }
+    .incorrect-msg {
+        color: #a94442;
+        background: #f2dede;
+        border: 1px solid #ebcccc;
+        padding: 0.25rem 0.5rem;
+        margin-top: 0.5rem;
+        border-radius: 3px;
+        font-size: 0.9rem;
+    }
+    .toast {
+        position: fixed;
+        right: 1rem;
+        top: 1rem;
+        z-index: 3000;
+        padding: 0.5rem 0.75rem;
+        border-radius: 4px;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        font-weight: 600;
+    }
+    .toast-success { background: #28a745; }
+    .toast-error { background: #dc3545; }
+</style>
+
+@code {
+    private CountryModel? CurrentCounty;
+    private string PanelTitle
+        => CurrentCounty switch
+        {
+            { IsConquered: true, Name: { Length: > 0 } name } => $"Already conquered: {name}",
+            _ when CurrentCounty != null => "Which county is this?",
+            _ => "UK County"
+        };
+    private string CountyAnswer { get; set; } = string.Empty;
+    private bool Visible { get; set; }
+    private bool _shake;
+    private bool _showIncorrect;
+    private bool _toastVisible;
+    private bool _toastSuccess;
+    private string _toastMessage = string.Empty;
+    private bool _countiesLoaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CountyGameService.CountyClicked += OnCountyClicked;
+        await EnsureCountiesLoadedAsync();
+    }
+
+    private async Task EnsureCountiesLoadedAsync()
+    {
+        if (_countiesLoaded) return;
+        try
+        {
+            if (CountyGameService.Counties == null || CountyGameService.Counties.Count == 0)
+            {
+                var counties = await CountyService.GetAllAsync();
+                if (counties != null)
+                {
+                    CountyGameService.Counties = counties;
+                }
+            }
+            _countiesLoaded = true;
+        }
+        catch
+        {
+            _countiesLoaded = true;
+        }
+    }
+
+    private void OnCountyClicked(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return;
+
+    var counties = CountyGameService.Counties;
+        if (counties == null || counties.Count == 0) return;
+
+    CountryModel? found = counties.FirstOrDefault(c => string.Equals(c.Code, id, StringComparison.OrdinalIgnoreCase));
+        if (found == null)
+        {
+            found = counties.FirstOrDefault(c => string.Equals(c.Name, id, StringComparison.OrdinalIgnoreCase));
+        }
+        CurrentCounty = found;
+        CountyAnswer = found?.Name ?? string.Empty;
+
+        if (found != null && !string.IsNullOrEmpty(found.Name) && found.IsConquered)
+        {
+            CountyAnswer = found.Name;
+        }
+        else if (found != null)
+        {
+            CountyAnswer = string.Empty;
+        }
+
+        _showIncorrect = false;
+        _shake = false;
+        Visible = true;
+
+        _ = InvokeAsync(async () =>
+        {
+            await Task.Delay(100);
+            try { await JS.InvokeVoidAsync("mapInterop.focusElement", "ukCountyAnswer"); } catch { }
+            StateHasChanged();
+        });
+    }
+
+    private async Task SubmitAnswer()
+    {
+        if (CurrentCounty == null) return;
+        var expected = Normalize(CurrentCounty.Name);
+        var actual = Normalize(CountyAnswer);
+
+        if (!string.IsNullOrEmpty(expected) && string.Equals(expected, actual, StringComparison.Ordinal))
+        {
+            await HandleCorrectAnswer();
+        }
+        else
+        {
+            _showIncorrect = true;
+            TriggerShake();
+        }
+    }
+
+    private async Task HandleCorrectAnswer()
+    {
+        if (CurrentCounty == null) return;
+
+        CurrentCounty.IsConquered = true;
+        if (string.IsNullOrEmpty(CurrentCounty.Color))
+        {
+            CurrentCounty.Color = "#28a745";
+        }
+
+        try
+        {
+            await StorageService.SaveUkCountiesAsync(CountyGameService.Counties);
+        }
+        catch { }
+
+        var id = string.IsNullOrEmpty(CurrentCounty.Code) ? CurrentCounty.Name ?? string.Empty : CurrentCounty.Code;
+        if (!string.IsNullOrEmpty(id))
+        {
+            CountyGameService.RaiseCountyConquered(id);
+        }
+
+        ShowToast($"{CurrentCounty.Name} conquered!", success: true);
+        Visible = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void TriggerShake()
+    {
+        _shake = true;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(400);
+            _shake = false;
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void Close()
+    {
+        Visible = false;
+        _showIncorrect = false;
+        StateHasChanged();
+    }
+
+    private async Task OnAnswerKeyDown(KeyboardEventArgs args)
+    {
+        if (string.Equals(args.Key, "Enter", StringComparison.OrdinalIgnoreCase))
+        {
+            await SubmitAnswer();
+        }
+    }
+
+    private void ShowToast(string message, bool success)
+    {
+        _toastVisible = true;
+        _toastSuccess = success;
+        _toastMessage = message;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(1800);
+            _toastVisible = false;
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        var sb = new StringBuilder();
+        foreach (var ch in value)
+        {
+            if (char.IsLetterOrDigit(ch) || char.IsWhiteSpace(ch))
+            {
+                sb.Append(char.ToLowerInvariant(ch));
+            }
+        }
+        return Regex.Replace(sb.ToString(), "\\s+", " ").Trim();
+    }
+
+    public void Dispose()
+    {
+        CountyGameService.CountyClicked -= OnCountyClicked;
+    }
+}

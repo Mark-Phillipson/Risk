@@ -10,6 +10,87 @@ window.mapInterop = {
     // whether to show persistent country labels (can be overridden via sessionStorage 'showCountryLabels')
     _showCountryLabels: true,
 
+    _resolveId: function (feature) {
+        if (!feature) return '';
+        var props = feature.properties || {};
+
+        function pickFirst(list) {
+            if (!list || !list.length) return '';
+            for (var i = 0; i < list.length; i++) {
+                var val = list[i];
+                if (val !== undefined && val !== null) {
+                    var str = ('' + val).trim();
+                    if (str.length) return str;
+                }
+            }
+            return '';
+        }
+
+        // Prefer authoritative administrative codes from properties before falling back to
+        // generic identifiers such as feature.id (which is numeric for some GeoJSON sources).
+        var propertyCodes = [
+            props.ctyua23cd, props.CTYUA23CD,
+            props.ctyua22cd, props.CTYUA22CD,
+            props.ctyua21cd, props.CTYUA21CD,
+            props.lad23cd, props.LAD23CD,
+            props.lad22cd, props.LAD22CD,
+            props.gss_code, props.GSS_CODE,
+            props.gsscode, props.GSSCODE,
+            props.iso_a3, props.ISO_A3,
+            props.iso_a2, props.ISO_A2,
+            props.code, props.Code, props.CODE
+        ];
+        var selected = pickFirst(propertyCodes);
+        if (selected) return selected;
+
+        var altCandidates = [
+            props.globalid, props.GLOBALID, props.GlobalID,
+            feature.id,
+            props.name, props.NAME,
+            props.admin, props.ADMIN,
+            props.formal_en, props.FORMAL_EN
+        ];
+        selected = pickFirst(altCandidates);
+        if (selected) return selected;
+
+        try {
+            for (var key in props) {
+                if (!Object.prototype.hasOwnProperty.call(props, key)) continue;
+                if (typeof key !== 'string') continue;
+                var lower = key.toLowerCase();
+                if (lower === 'ctyua22cd' || lower === 'ctyua21cd' || lower === 'ctyua23cd' || lower.endsWith('code')) {
+                    var v = props[key];
+                    if (v !== undefined && v !== null && ('' + v).trim().length) {
+                        return ('' + v).trim();
+                    }
+                }
+            }
+        } catch (e) { }
+        return '';
+    },
+
+    _resolveName: function (feature, fallbackId) {
+        if (!feature) return fallbackId || '';
+        var props = feature.properties || {};
+        var candidates = [
+            props.name, props.NAME,
+            props.admin, props.ADMIN,
+            props.formal_en, props.FORMAL_EN,
+            props.ctyua22nm, props.CTYUA22NM,
+            props.ctyua21nm, props.CTYUA21NM,
+            props.ctyua23nm, props.CTYUA23NM,
+            props.lad22nm, props.LAD22NM,
+            props.lad23nm, props.LAD23NM
+        ];
+        for (var i = 0; i < candidates.length; i++) {
+            var val = candidates[i];
+            if (val !== undefined && val !== null && ('' + val).trim().length) {
+                return ('' + val).trim();
+            }
+        }
+        return fallbackId || '';
+    },
+
     initMap: function (elementId, geoJsonPath) {
         // elementId: id of the map div
         // geoJsonPath: path to GeoJSON file
@@ -127,8 +208,8 @@ window.mapInterop = {
                         // store layer by id for later updates
                         try {
                             // Prefer feature.id (commonly ISO3 code) when available.
-                            // Fallback order: feature.id -> properties.iso_a3 -> properties.code -> properties.name
-                            var idKey = feature.id || (feature.properties && (feature.properties.iso_a3 || feature.properties.code || feature.properties.name)) || '';
+                            // Fallback order extended to cover administrative boundary datasets.
+                            var idKey = window.mapInterop._resolveId(feature);
                             if (idKey) {
                                 try {
                                     // store canonical key plus uppercase/lowercase variants to improve matching tolerance
@@ -145,7 +226,7 @@ window.mapInterop = {
 
                         layer.on('click', function () {
                             try {
-                                var id = feature.id || (feature.properties && (feature.properties.iso_a3 || feature.properties.code || feature.properties.name)) || '';
+                                var id = window.mapInterop._resolveId(feature);
                                 console.log('mapInterop: feature clicked, id=', id);
                                 if (dotNetRef && dotNetRef.invokeMethodAsync) {
                                     // invoke .NET callback
@@ -155,7 +236,7 @@ window.mapInterop = {
                                         console.error('mapInterop: .NET callback error', err);
                                     });
                                 } else {
-                                    alert("Country clicked: " + (feature.properties && feature.properties.name));
+                                    alert("Country clicked: " + window.mapInterop._resolveName(feature, id));
                                 }
                             } catch (e) {
                                 console.error('Error invoking .NET callback', e);
@@ -483,7 +564,7 @@ window.mapInterop = {
                 layer.setStyle({ color: '#222', weight: 1, fillColor: (color || '#ffcc00'), fillOpacity: 0.6 });
                 try {
                     // Prefer human-readable name from feature properties; fallbacks for common keys
-                    var name = (layer.feature && layer.feature.properties && (layer.feature.properties.name || layer.feature.properties.NAME || layer.feature.properties.ADMIN || layer.feature.properties.admin)) || id;
+                    var name = window.mapInterop._resolveName(layer ? layer.feature : null, id);
                     // Try to place a persistent label marker at the polygon centroid (or bounds center)
                     var map = window.mapInterop._map;
                     var center = null;
@@ -563,7 +644,7 @@ window.mapInterop = {
                 if (layer) {
                     layer.setStyle({ color: '#222', weight: 1, fillColor: (colorMap[id] || '#ffcc00'), fillOpacity: 0.6 });
                     try {
-                        var name = (layer.feature && layer.feature.properties && (layer.feature.properties.name || layer.feature.properties.NAME || layer.feature.properties.ADMIN || layer.feature.properties.admin)) || id;
+                        var name = window.mapInterop._resolveName(layer ? layer.feature : null, id);
                         var map = window.mapInterop._map;
                         var center = null;
                         try {
@@ -652,7 +733,7 @@ window.mapInterop = {
                                     var c = (colorMap && colorMap[id2]) ? colorMap[id2] : (isArrayColors ? '#ffcc00' : colorOrColors || '#ffcc00');
                                     layer2.setStyle({ color: '#222', weight: 1, fillColor: (c || '#ffcc00'), fillOpacity: 0.6 });
                                     try {
-                                        var name2 = (layer2.feature && layer2.feature.properties && (layer2.feature.properties.name || layer2.feature.properties.NAME || layer2.feature.properties.ADMIN || layer2.feature.properties.admin)) || id2;
+                                        var name2 = window.mapInterop._resolveName(layer2 ? layer2.feature : null, id2);
                                         var map2 = window.mapInterop._map;
                                         var center2 = null;
                                         try { if (map2 && layer2 && layer2.getLatLngs) center2 = window.mapInterop._getLargestPolygonCenter(layer2, map2) || null; if (!center2) { if (layer2.getBounds) center2 = layer2.getBounds().getCenter(); else if (layer2.getLatLng) center2 = layer2.getLatLng(); } } catch (e) { center2 = null; }
@@ -682,6 +763,29 @@ window.mapInterop = {
             }
             return { matched: matched, unmatched: unmatched };
         } catch (e) { console.error('mapInterop.setCountryConqueredAny error', e); return null; }
+    }
+
+    , setView: function (lat, lng, zoom, options) {
+        try {
+            var map = window.mapInterop._map;
+            if (!map) {
+                console.warn('mapInterop.setView: map not initialized yet');
+                return false;
+            }
+            if (typeof lat !== 'number' || typeof lng !== 'number') {
+                console.error('mapInterop.setView: latitude and longitude must be numbers');
+                return false;
+            }
+            if (zoom === undefined || zoom === null) {
+                zoom = map.getZoom();
+            }
+            var opts = options || { animate: false };
+            map.setView([lat, lng], zoom, opts);
+            return true;
+        } catch (e) {
+            console.error('mapInterop.setView error', e);
+            return false;
+        }
     }
 
     // Update label visibility depending on current zoom level
@@ -771,7 +875,7 @@ window.mapInterop = {
                     try { var s = layer.options && layer.options.fillOpacity; styled = (typeof s === 'number' && s > 0); } catch (e) { }
                     if (!styled) continue;
 
-                    var name = (layer.feature && layer.feature.properties && (layer.feature.properties.name || layer.feature.properties.NAME || layer.feature.properties.ADMIN || layer.feature.properties.admin)) || id;
+                    var name = window.mapInterop._resolveName(layer ? layer.feature : null, id);
                     var newCenter = null;
                     try {
                         if (window.turf) {
@@ -825,7 +929,7 @@ window.mapInterop = {
                         var cand = keys[i];
                         var lay = window.mapInterop._layersById[cand];
                         if (!lay || !lay.feature || !lay.feature.properties) continue;
-                        var name = lay.feature.properties.name || lay.feature.properties.NAME || lay.feature.properties.ADMIN || lay.feature.properties.admin || '';
+                        var name = window.mapInterop._resolveName(lay ? lay.feature : null, id);
                         if (name && name.toString().toLowerCase() === id.toString().toLowerCase()) { layer = lay; break; }
                     }
                 } catch (e) { /* ignore */ }

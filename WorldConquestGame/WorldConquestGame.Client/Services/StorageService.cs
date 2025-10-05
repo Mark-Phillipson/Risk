@@ -29,9 +29,9 @@ public class StorageService
     }
 
     private const string CountriesKey = "wcg.countries.v1";
+    private const string UkCountiesKey = "wcg.ukcounties.v1";
 
-    // Persist a list of countries (we store minimal fields: Code, IsConquered, Owner, Color, Capital)
-    public async ValueTask SaveCountriesAsync(List<WorldConquestGame.Shared.Models.Country> countries)
+    private async ValueTask SaveCountryListAsync(string key, List<WorldConquestGame.Shared.Models.Country> countries)
     {
         if (countries == null) return;
         try
@@ -44,16 +44,16 @@ public class StorageService
                 c.Capital
             });
             var json = System.Text.Json.JsonSerializer.Serialize(lite);
-            await SetItemAsync(CountriesKey, json);
+            await SetItemAsync(key, json);
         }
         catch { }
     }
 
-    public async ValueTask<List<WorldConquestGame.Shared.Models.Country>> LoadCountriesAsync()
+    private async ValueTask<List<WorldConquestGame.Shared.Models.Country>> LoadCountryListAsync(string key)
     {
         try
         {
-            var txt = await GetItemAsync(CountriesKey);
+            var txt = await GetItemAsync(key);
             if (string.IsNullOrEmpty(txt)) return new List<WorldConquestGame.Shared.Models.Country>();
             var arr = System.Text.Json.JsonSerializer.Deserialize<List<CountryPersistDto>>(txt);
             if (arr == null) return new List<WorldConquestGame.Shared.Models.Country>();
@@ -62,9 +62,23 @@ public class StorageService
         catch { return new List<WorldConquestGame.Shared.Models.Country>(); }
     }
 
+    // Persist a list of countries (we store minimal fields: Code, IsConquered, Owner, Color, Capital)
+    public ValueTask SaveCountriesAsync(List<WorldConquestGame.Shared.Models.Country> countries) => SaveCountryListAsync(CountriesKey, countries);
+
+    public ValueTask<List<WorldConquestGame.Shared.Models.Country>> LoadCountriesAsync() => LoadCountryListAsync(CountriesKey);
+
     public async ValueTask ClearCountriesAsync()
     {
         await RemoveItemAsync(CountriesKey);
+    }
+
+    public ValueTask SaveUkCountiesAsync(List<WorldConquestGame.Shared.Models.Country> counties) => SaveCountryListAsync(UkCountiesKey, counties);
+
+    public ValueTask<List<WorldConquestGame.Shared.Models.Country>> LoadUkCountiesAsync() => LoadCountryListAsync(UkCountiesKey);
+
+    public async ValueTask ClearUkCountiesAsync()
+    {
+        await RemoveItemAsync(UkCountiesKey);
     }
 
     private class CountryPersistDto { public string? Code { get; set; } public bool IsConquered { get; set; } public string? Owner { get; set; } public string? Color { get; set; } public string? Capital { get; set; } }
