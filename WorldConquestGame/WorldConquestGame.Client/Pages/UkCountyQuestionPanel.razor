@@ -21,7 +21,13 @@
     </div>
     @if (_showIncorrect)
     {
-        <div class="incorrect-msg">Incorrect — try again.</div>
+        <div class="incorrect-msg">
+            <div>Incorrect — try again.</div>
+            @if (!string.IsNullOrEmpty(_incorrectHint))
+            {
+                <div class="hint">Hint: starts with '@_incorrectHint'</div>
+            }
+        </div>
     }
 </div>
 
@@ -83,6 +89,7 @@
     private bool _toastSuccess;
     private string _toastMessage = string.Empty;
     private bool _countiesLoaded;
+    private string _incorrectHint = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -141,8 +148,8 @@
 
         _ = InvokeAsync(async () =>
         {
-            await Task.Delay(100);
-            try { await JS.InvokeVoidAsync("mapInterop.focusElement", "ukCountyAnswer"); } catch { }
+            await Task.Delay(150);
+            try { await JS.InvokeVoidAsync("mapInterop.focusElement", "ukCountyAnswer", true); } catch { }
             StateHasChanged();
         });
     }
@@ -155,11 +162,39 @@
 
         if (!string.IsNullOrEmpty(expected) && string.Equals(expected, actual, StringComparison.Ordinal))
         {
+            _incorrectHint = string.Empty;
             await HandleCorrectAnswer();
         }
         else
         {
             _showIncorrect = true;
+            // set inline hint (first letter) so it's visible until user changes input
+            try
+            {
+                if (!string.IsNullOrEmpty(CurrentCounty?.Name))
+                {
+                    _incorrectHint = CurrentCounty.Name.Trim()[0].ToString().ToUpperInvariant();
+                }
+                else
+                {
+                    _incorrectHint = string.Empty;
+                }
+            }
+            catch
+            {
+                _incorrectHint = string.Empty;
+            }
+
+            // also show toast (short-lived)
+            if (!string.IsNullOrEmpty(_incorrectHint))
+            {
+                ShowToast($"Incorrect — try again. Hint: starts with '{_incorrectHint}'", success: false);
+            }
+            else
+            {
+                ShowToast("Incorrect — try again.", success: false);
+            }
+
             TriggerShake();
         }
     }

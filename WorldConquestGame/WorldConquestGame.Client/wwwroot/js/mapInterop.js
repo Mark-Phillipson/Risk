@@ -819,12 +819,88 @@ window.mapInterop = {
         } catch (e) { }
     }
 
-    , focusElement: function (id) {
+    , focusElement: function (id, select) {
         try {
-            if (!id) return;
+            if (!id) return false;
+
+            function isVisible(el) {
+                try {
+                    if (!el) return false;
+                    if (el.offsetParent === null) return false;
+                    var cs = window.getComputedStyle(el);
+                    if (!cs) return true;
+                    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+                    return true;
+                } catch (e) { return false; }
+            }
+
+            function doFocus(el) {
+                try {
+                    if (!el) return false;
+                    // ensure the element is visible and focusable
+                    if (!isVisible(el)) return false;
+                    // use requestAnimationFrame to avoid timing races
+                    window.requestAnimationFrame(function () {
+                        try {
+                            if (typeof el.focus === 'function') {
+                                el.focus({ preventScroll: false });
+                            } else if (el.focus) {
+                                el.focus();
+                            }
+                            if (select) {
+                                try {
+                                    if (typeof el.select === 'function') el.select();
+                                    else if (el.setSelectionRange && typeof el.value === 'string') el.setSelectionRange(0, el.value.length);
+                                } catch (e) { }
+                            }
+                        } catch (e) { }
+                    });
+                    return true;
+                } catch (e) { return false; }
+            }
+
             var el = document.getElementById(id);
-            if (el && el.focus) el.focus();
-        } catch (e) { console.error('mapInterop.focusElement error', e); }
+            if (el && doFocus(el)) return true;
+
+            // If element not present or not visible yet, observe the DOM for changes and focus when ready
+            var observer = null;
+            var timedOut = false;
+            var timeout = setTimeout(function () { timedOut = true; if (observer) observer.disconnect(); }, 2000);
+
+            observer = new MutationObserver(function (mutations) {
+                try {
+                    if (timedOut) return;
+                    var e = document.getElementById(id);
+                    if (e && isVisible(e)) {
+                        try { doFocus(e); } catch (ex) { }
+                        if (observer) observer.disconnect();
+                        clearTimeout(timeout);
+                    }
+                } catch (e) { }
+            });
+
+            try {
+                observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+            } catch (e) {
+                // If MutationObserver isn't supported or observation fails, fall back to polling
+                var attempts = 0;
+                var maxAttempts = 40; // ~2s
+                var tid = setInterval(function () {
+                    attempts++;
+                    try {
+                        var el2 = document.getElementById(id);
+                        if (el2 && doFocus(el2)) {
+                            clearInterval(tid);
+                            clearTimeout(timeout);
+                        } else if (attempts >= maxAttempts) {
+                            clearInterval(tid);
+                        }
+                    } catch (e) { clearInterval(tid); }
+                }, 50);
+            }
+
+            return true;
+        } catch (e) { console.error('mapInterop.focusElement error', e); return false; }
     }
 
     // Clear all conquered styles and labels from the map

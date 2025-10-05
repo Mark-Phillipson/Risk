@@ -40,5 +40,4 @@
 - `wwwroot/data/`: Static data
 - `wwwroot/js/mapInterop.js`: JS interop
 
----
-For questions or unclear patterns, review the README or ask for clarification.
+When using chat GPT five mini please SUMMARIZE your responses.
