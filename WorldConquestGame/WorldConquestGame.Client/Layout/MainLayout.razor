@@ -94,6 +94,9 @@
                 }
             }
 
+
+            private bool showResetModal = false;
+
             private async Task ResetAndGoToMap()
             {
                 try
@@ -102,38 +105,43 @@
                     if (string.Equals(rel, "uk-counties", StringComparison.OrdinalIgnoreCase))
                     {
                         // Show a confirmation modal before clearing UK counties
-                        await ShowResetConfirmation();
+                        showResetModal = true;
+                        StateHasChanged();
+                        return;
+                    }
+
+                    // If already on /map, force reload to trigger reset logic
+                    if (string.Equals(rel, "map", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await JS.InvokeVoidAsync("sessionStorage.setItem", "resetMap", "1");
+                        await JS.InvokeVoidAsync("location.reload");
                         return;
                     }
 
                     // Request the map page to perform a reset on load
                     await JS.InvokeVoidAsync("sessionStorage.setItem", "resetMap", "1");
+                    NavigationManager.NavigateTo("/map");
                 }
                 catch { }
-                NavigationManager.NavigateTo("/map");
             }
 
-            // Show Bootstrap confirmation modal (via JS)
-            private async Task ShowResetConfirmation()
-            {
-                try
-                {
-                        await JS.InvokeVoidAsync("mapInterop.showBootstrapModal", "confirmResetModal");
-                }
-                catch { }
-            }
+
+            // No longer needed: ShowResetConfirmation
 
             // Called by confirmation modal when user confirms reset
             private async Task ConfirmReset()
             {
                 try
                 {
+                    await JS.InvokeVoidAsync("console.log", "[Blazor] ConfirmReset called");
                     // Trigger the game service reset event which the uk-counties page listens for
                     CountyGameService.RequestReset();
                     // Also ensure persisted uk counties cleared (service handler in page also clears, but keep this as safety)
                     await StorageService.ClearUkCountiesAsync();
                 }
                 catch { }
+                showResetModal = false;
+                StateHasChanged();
             }
 
             // Subscribe to location changes so the layout can re-render when route changes
@@ -157,23 +165,26 @@
         <article class="content px-4">
             @Body
         </article>
-        <!-- Confirmation modal for Reset action -->
-        <div class="modal fade" id="confirmResetModal" tabindex="-1" aria-labelledby="confirmResetModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="confirmResetModalLabel">Confirm reset</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        This will clear your saved progress for UK counties. Are you sure?
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" @onclick="ConfirmReset">Clear UK progress</button>
+        <!-- Confirmation modal for Reset action (Blazor controlled) -->
+        @if (showResetModal)
+        {
+            <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.5);">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Confirm reset</h5>
+                            <button type="button" class="btn-close" @onclick="() => showResetModal = false" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            This will clear your saved progress for UK counties. Are you sure?
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="() => showResetModal = false">Cancel</button>
+                            <button type="button" class="btn btn-danger" @onclick="ConfirmReset">Clear UK progress</button>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        }
     </main>
 </div>

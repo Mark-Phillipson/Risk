@@ -140,11 +140,13 @@
             try
             {
                 var counties = CountyGameService.Counties;
-                var match = counties.FirstOrDefault(c => string.Equals(c.Code, id, StringComparison.OrdinalIgnoreCase) || string.Equals(c.Name, id, StringComparison.OrdinalIgnoreCase));
+                var match = counties.FirstOrDefault(c => string.Equals(c.Code, id, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(c.Name, id, StringComparison.OrdinalIgnoreCase));
                 var color = match?.Color;
                 if (string.IsNullOrEmpty(color)) color = "#28a745";
                 await JS.InvokeAsync<object?>("mapInterop.setCountryConqueredAny", new[] { id }, new[] { color });
-                if (match != null && !string.Equals(match.Code, id, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(match.Code))
+                if (match != null && !string.Equals(match.Code, id, StringComparison.OrdinalIgnoreCase) &&
+        !string.IsNullOrEmpty(match.Code))
                 {
                     await JS.InvokeAsync<object?>("mapInterop.setCountryConqueredAny", new[] { match.Code }, new[] { color });
                 }
@@ -162,6 +164,7 @@
         {
             try
             {
+                await JS.InvokeVoidAsync("console.log", "[Blazor] OnResetRequested called in UkCountiesMap");
                 // Clear in-memory flags
                 try
                 {
