@@ -1,4 +1,10 @@
 window.mapInterop = {
+    // Opens a new tab with the Wikipedia page for the given country name
+    openWikipediaTab: function (countryName) {
+        if (!countryName) return;
+        var url = 'https://en.wikipedia.org/wiki/' + encodeURIComponent(countryName);
+        window.open(url, '_blank');
+    },
     // store references to layers by feature id (code or name)
     _layersById: {},
     // store label markers for conquered countries so they persist independent of feature tooltips
@@ -255,7 +261,7 @@ window.mapInterop = {
                     // Log summary of known layer keys for debugging
                     var keys = Object.keys(window.mapInterop._layersById || {});
                     console.log('mapInterop: loaded geo layer, known layer keys count=', keys.length, ' sample=', keys.slice(0, 12));
-                        // Zoom the map to a specific country feature identified by id (code or name).
+                    // Zoom the map to a specific country feature identified by id (code or name).
                 } catch (e) { }
                 // After loading geo layer, check for any pending continent zoom request stored in sessionStorage
                 try {
@@ -927,6 +933,23 @@ window.mapInterop = {
             }
             window.mapInterop._labelConnectors = {};
         } catch (e) { console.error('mapInterop.clearConquered error', e); }
+    }
+
+    // Show a Bootstrap modal by id (safe helper to avoid eval)
+    , showBootstrapModal: function (id) {
+        try {
+            if (!id) return false;
+            var el = document.getElementById(id);
+            if (!el) return false;
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                try {
+                    var modal = new bootstrap.Modal(el);
+                    modal.show();
+                    return true;
+                } catch (e) { console.error('mapInterop.showBootstrapModal error', e); return false; }
+            }
+            return false;
+        } catch (e) { console.error('mapInterop.showBootstrapModal error', e); return false; }
     }
 
     // Recompute all label positions based on current geometry and prefer turf interior points for multi-part features

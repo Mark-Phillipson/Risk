@@ -52,6 +52,7 @@
             await JS.InvokeVoidAsync("mapInterop.initMap", "county-map", "data/uk-counties.geojson", objRef);
             await EnsureCountiesLoadedAsync();
             CountyGameService.CountyConquered += OnCountyConquered;
+            CountyGameService.ResetRequested += OnResetRequested;
 
             try
             {
@@ -155,9 +156,41 @@
         });
     }
 
+    private void OnResetRequested()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                // Clear in-memory flags
+                try
+                {
+                    foreach (var c in CountyGameService.Counties)
+                    {
+                        c.IsConquered = false;
+                        c.Owner = string.Empty;
+                        c.Color = string.Empty;
+                    }
+                }
+                catch { }
+
+                // Clear map styling/labels
+                try { await JS.InvokeVoidAsync("mapInterop.clearConquered"); } catch { }
+
+                // Clear persisted storage for uk counties
+                try { await StorageService.ClearUkCountiesAsync(); } catch { }
+
+                // Re-render UI
+                StateHasChanged();
+            }
+            catch { }
+        });
+    }
+
     public void Dispose()
     {
         CountyGameService.CountyConquered -= OnCountyConquered;
+        CountyGameService.ResetRequested -= OnResetRequested;
         objRef?.Dispose();
     }
 }

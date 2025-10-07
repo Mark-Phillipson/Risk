@@ -126,12 +126,46 @@
     }
 
     [JSInvokable]
-    public Task OnCountryClicked(string id)
+    public async Task OnCountryClicked(string id)
     {
         // id will be code or name from GeoJSON properties
         Console.WriteLine($"Map.OnCountryClicked called with id={id}");
+        await JS.InvokeVoidAsync("console.log", $"[Blazor] OnCountryClicked called with id={id}");
+        // Log all countries for debugging
+        foreach (var c in GameService.Countries)
+        {
+            await JS.InvokeVoidAsync("console.log", $"[Blazor] Country: Code={c.Code}, Name={c.Name}, IsConquered={c.IsConquered}");
+        }
+        var country = GameService.Countries.FirstOrDefault(c => c.Code == id || c.Name == id);
+        if (country == null)
+        {
+            await JS.InvokeVoidAsync("console.warn", $"[Blazor] No country found for id={id}");
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("console.log", $"[Blazor] Found country: Code={country.Code}, Name={country.Name}, IsConquered={country.IsConquered}");
+            if (country.IsConquered)
+            {
+                string wikiTarget = country.Name;
+                if (string.IsNullOrWhiteSpace(wikiTarget))
+                {
+                    // Fallback: use code, and for common codes, map to Wikipedia-friendly names
+                    wikiTarget = country.Code switch
+                    {
+                        "GBR" => "United Kingdom",
+                        "USA" => "United States",
+                        "CAN" => "Canada",
+                        "AUS" => "Australia",
+                        "NZL" => "New Zealand",
+                        "GRL" => "Greenland",
+                        _ => country.Code
+                    };
+                }
+                await JS.InvokeVoidAsync("console.log", $"[Blazor] Opening Wikipedia for {wikiTarget}");
+                await JS.InvokeVoidAsync("mapInterop.openWikipediaTab", wikiTarget);
+            }
+        }
         GameService.RaiseCountryClicked(id);
-        return Task.CompletedTask;
     }
 
     private async Task ResetMap()

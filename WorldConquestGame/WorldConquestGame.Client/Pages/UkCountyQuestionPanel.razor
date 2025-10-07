@@ -10,10 +10,12 @@
 @inject IJSRuntime JS
 @implements IDisposable
 
-<div class="question-panel @( _shake ? "shake" : string.Empty)" style="display:@(Visible ? "block" : "none"); position:fixed; top:1rem; right:1rem; z-index:2000; background:#fff; padding:1rem; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:260px;">
+<div class="question-panel @( _shake ? "shake" : string.Empty)"
+    style="display:@(Visible ? "block" : "none"); position:fixed; top:1rem; right:1rem; z-index:2000; background:#fff; padding:1rem; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:260px;">
     <h4>@PanelTitle</h4>
     <div style="display:flex; flex-direction:column; gap:0.35rem;">
-    <input id="ukCountyAnswer" @bind-value="CountyAnswer" @bind-value:event="oninput" placeholder="County name" @onkeydown="OnAnswerKeyDown" />
+        <input id="ukCountyAnswer" @bind-value="CountyAnswer" @bind-value:event="oninput" placeholder="County name"
+            @onkeydown="OnAnswerKeyDown" />
     </div>
     <div style="margin-top:0.5rem; display:flex; gap:0.5rem;">
         <button class="btn btn-primary" @onclick="SubmitAnswer">Submit</button>
@@ -25,7 +27,7 @@
             <div>Incorrect — try again.</div>
             @if (!string.IsNullOrEmpty(_incorrectHint))
             {
-                <div class="hint">Hint: starts with '@_incorrectHint'</div>
+                <div class="hint">Hint: '@_incorrectHint'</div>
             }
         </div>
     }
@@ -38,16 +40,35 @@
 
 <style>
     @@keyframes qc-shake {
-        0% { transform: translateX(0); }
-        20% { transform: translateX(-8px); }
-        40% { transform: translateX(8px); }
-        60% { transform: translateX(-6px); }
-        80% { transform: translateX(6px); }
-        100% { transform: translateX(0); }
+        0% {
+            transform: translateX(0);
+        }
+
+        20% {
+            transform: translateX(-8px);
+        }
+
+        40% {
+            transform: translateX(8px);
+        }
+
+        60% {
+            transform: translateX(-6px);
+        }
+
+        80% {
+            transform: translateX(6px);
+        }
+
+        100% {
+            transform: translateX(0);
+        }
     }
+
     .question-panel.shake {
         animation: qc-shake 0.30s ease-in-out;
     }
+
     .incorrect-msg {
         color: #a94442;
         background: #f2dede;
@@ -57,6 +78,7 @@
         border-radius: 3px;
         font-size: 0.9rem;
     }
+
     .toast {
         position: fixed;
         right: 1rem;
@@ -65,22 +87,28 @@
         padding: 0.5rem 0.75rem;
         border-radius: 4px;
         color: #fff;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
         font-weight: 600;
     }
-    .toast-success { background: #28a745; }
-    .toast-error { background: #dc3545; }
+
+    .toast-success {
+        background: #28a745;
+    }
+
+    .toast-error {
+        background: #dc3545;
+    }
 </style>
 
 @code {
     private CountryModel? CurrentCounty;
     private string PanelTitle
-        => CurrentCounty switch
-        {
-            { IsConquered: true, Name: { Length: > 0 } name } => $"Already conquered: {name}",
-            _ when CurrentCounty != null => "Which county is this?",
-            _ => "UK County"
-        };
+    => CurrentCounty switch
+    {
+        { IsConquered: true, Name: { Length: > 0 } name } => $"Already conquered: {name}",
+        _ when CurrentCounty != null => "Which county is this?",
+        _ => "UK County"
+    };
     private string CountyAnswer { get; set; } = string.Empty;
     private bool Visible { get; set; }
     private bool _shake;
@@ -122,10 +150,10 @@
     {
         if (string.IsNullOrEmpty(id)) return;
 
-    var counties = CountyGameService.Counties;
+        var counties = CountyGameService.Counties;
         if (counties == null || counties.Count == 0) return;
 
-    CountryModel? found = counties.FirstOrDefault(c => string.Equals(c.Code, id, StringComparison.OrdinalIgnoreCase));
+        CountryModel? found = counties.FirstOrDefault(c => string.Equals(c.Code, id, StringComparison.OrdinalIgnoreCase));
         if (found == null)
         {
             found = counties.FirstOrDefault(c => string.Equals(c.Name, id, StringComparison.OrdinalIgnoreCase));
@@ -173,7 +201,7 @@
             {
                 if (!string.IsNullOrEmpty(CurrentCounty?.Name))
                 {
-                    _incorrectHint = CurrentCounty.Name.Trim()[0].ToString().ToUpperInvariant();
+                    _incorrectHint = CurrentCounty.Name; //.Trim()[0].ToString().ToUpperInvariant();
                 }
                 else
                 {

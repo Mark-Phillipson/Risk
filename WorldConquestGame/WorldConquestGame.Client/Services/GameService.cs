@@ -42,11 +42,20 @@ public class GameService
                 match.Owner = p.Owner;
                 match.Color = p.Color;
                 if (!string.IsNullOrEmpty(p.Capital)) match.Capital = p.Capital;
+                if (!string.IsNullOrEmpty(p.Name)) match.Name = p.Name; // Set name if available
             }
             else
             {
                 // If not in list, add a minimal record so UI can apply styles by code
-                Countries.Add(new Country { Code = p.Code, IsConquered = p.IsConquered, Owner = p.Owner, Color = p.Color, Capital = p.Capital ?? string.Empty });
+                Countries.Add(new Country
+                {
+                    Code = p.Code,
+                    Name = p.Name ?? string.Empty,
+                    IsConquered = p.IsConquered,
+                    Owner = p.Owner,
+                    Color = p.Color,
+                    Capital = p.Capital ?? string.Empty
+                });
             }
         }
     }

@@ -40,4 +40,4 @@
 - `wwwroot/data/`: Static data
 - `wwwroot/js/mapInterop.js`: JS interop
 
-When using chat GPT five mini please SUMMARIZE your responses.
+When using chat GPT-5 mini please SUMMARIZE your responses.

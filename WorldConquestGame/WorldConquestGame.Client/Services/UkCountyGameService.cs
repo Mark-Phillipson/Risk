@@ -9,6 +9,8 @@ public class UkCountyGameService
 
     public event Action<string>? CountyClicked;
     public event Action<string>? CountyConquered;
+    // Request to reset/clear all uk-county progress (subscribers should clear UI/state)
+    public event Action? ResetRequested;
 
     private int TurnIndex = 0;
     public Player CurrentPlayer => Players[TurnIndex % Math.Max(1, Players.Count)];
@@ -74,5 +76,10 @@ public class UkCountyGameService
         }
 
         CountyConquered?.Invoke(id);
+    }
+
+    public void RequestReset()
+    {
+        try { ResetRequested?.Invoke(); } catch { }
     }
 }
