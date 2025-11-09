@@ -8,7 +8,7 @@
         <div class="modal-dialog" style="position:fixed;top:2rem;right:2rem;left:auto;transform:none;background:white;padding:2rem;border-radius:8px;min-width:300px;z-index:1100;">
             <h4>@Title</h4>
             <p>@Question</p>
-            <input id="town-modal-input" type="text" @bind="UserAnswer" placeholder="Enter town or village name" style="width:100%;margin-bottom:1rem;" @onkeydown="HandleKeyDown" />
+            <input id="town-modal-input" type="text" @bind="UserAnswer" placeholder="Enter town or village name" style="width:100%;margin-bottom:1rem;" @onkeydown="HandleKeyDown" @oninput="OnInputChanged" />
             <div style="display:flex;justify-content:flex-end;gap:1rem;">
                 <button class="btn btn-primary" @onclick="Submit">Submit</button>
                 <button class="btn btn-secondary" @onclick="Close">Cancel</button>
@@ -31,6 +31,18 @@
 
     private string UserAnswer = "";
     private string ErrorMessage = "";
+    private bool wasOpen = false;
+
+    protected override void OnParametersSet()
+    {
+        // Clear input when modal opens
+        if (IsOpen && !wasOpen)
+        {
+            UserAnswer = "";
+            ErrorMessage = "";
+        }
+        wasOpen = IsOpen;
+    }
 
     private async Task Submit()
     {
@@ -57,6 +69,15 @@
         if (e.Key == "Enter")
         {
             await Submit();
+        }
+    }
+
+    private void OnInputChanged(ChangeEventArgs e)
+    {
+        UserAnswer = e.Value?.ToString() ?? "";
+        if (!string.IsNullOrWhiteSpace(UserAnswer))
+        {
+            ErrorMessage = "";
         }
     }
     private async Task Close()
