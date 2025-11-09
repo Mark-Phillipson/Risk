@@ -1,4 +1,52 @@
 window.mapInterop = {
+    // Zoom the map to the bounding box of all features matching the provided Kent region name.
+    zoomToKentRegion: function (regionName) {
+        try {
+            if (!window.mapInterop._geoLayer || !window.mapInterop._map || !regionName) return;
+            var layer = window.mapInterop._geoLayer;
+            var bounds = null;
+            layer.eachLayer(function (l) {
+                try {
+                    var props = l.feature && l.feature.properties ? l.feature.properties : {};
+                    var r = props.region || props.REGION || props.kent_region || props.KentRegion || '';
+                    var name = (props.name || props.NAME || '').toString().toLowerCase();
+                    var target = regionName.toString().toLowerCase();
+                    if (r && r.toLowerCase() === target) {
+                        var b = l.getBounds ? l.getBounds() : null;
+                        if (b) {
+                            if (!bounds) bounds = b;
+                            else bounds.extend(b);
+                        }
+                    } else if (name === target) {
+                        var b = l.getBounds ? l.getBounds() : null;
+                        if (b) {
+                            if (!bounds) bounds = b;
+                            else bounds.extend(b);
+                        }
+                    }
+                } catch (e) { }
+            });
+            if (bounds) {
+                window.mapInterop._map.fitBounds(bounds, { padding: [40, 40] });
+                return true;
+            } else {
+                // Fallback: use hardcoded bounding boxes for Kent regions if needed
+                var lower = regionName.toString().toLowerCase();
+                var boxes = {
+                    'south kent': [[51.0, 0.8], [51.2, 1.2]],
+                    'north kent': [[51.4, 0.3], [51.5, 0.7]],
+                    'east kent': [[51.2, 1.0], [51.4, 1.4]],
+                    'west kent': [[51.1, 0.2], [51.3, 0.6]]
+                };
+                if (boxes[lower]) {
+                    var b = L.latLngBounds(boxes[lower]);
+                    window.mapInterop._map.fitBounds(b, { padding: [40, 40] });
+                    return true;
+                }
+                return false;
+            }
+        } catch (e) { console.error('mapInterop.zoomToKentRegion error', e); return false; }
+    },
     // Zoom the map to the bounding box of all features matching the provided UK region name.
     // Region name should match a property on the features (we'll check properties.region or properties.REGION or properties.country_region)
     zoomToUkRegion: function (regionName) {

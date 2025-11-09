@@ -1,0 +1,59 @@
+@namespace WorldConquestGame.Client.Shared
+@* TownGuessModal.razor: A reusable modal dialog for town/village identification *@
+
+@if (IsOpen)
+{
+    <div class="modal-backdrop" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:1000;">
+        <div class="modal-dialog" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:2rem;border-radius:8px;min-width:300px;z-index:1001;">
+            <h4>@Title</h4>
+            <p>@Question</p>
+            <input type="text" @bind="UserAnswer" placeholder="Enter town or village name" style="width:100%;margin-bottom:1rem;" />
+            <div style="display:flex;justify-content:flex-end;gap:1rem;">
+                <button class="btn btn-primary" @onclick="Submit">Submit</button>
+                <button class="btn btn-secondary" @onclick="Close">Cancel</button>
+            </div>
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div style="color:red;margin-top:1rem;">@ErrorMessage</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public string Title { get; set; } = "Identify Town or Village";
+    [Parameter] public string Question { get; set; } = "What town or village is this?";
+    [Parameter] public EventCallback<string> OnSubmit { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public string CorrectAnswer { get; set; } = "";
+
+    private string UserAnswer = "";
+    private string ErrorMessage = "";
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(UserAnswer))
+        {
+            ErrorMessage = "Please enter a name.";
+            return;
+        }
+        if (string.Equals(UserAnswer.Trim(), CorrectAnswer.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            ErrorMessage = "";
+            await OnSubmit.InvokeAsync(UserAnswer);
+            await Close();
+        }
+        else
+        {
+            ErrorMessage = "Incorrect. Try again or Cancel.";
+        }
+    }
+
+    private async Task Close()
+    {
+        UserAnswer = "";
+        ErrorMessage = "";
+        await OnClose.InvokeAsync();
+    }
+}

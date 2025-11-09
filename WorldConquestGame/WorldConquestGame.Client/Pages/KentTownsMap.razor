@@ -3,6 +3,7 @@
 @using System.Linq
 @using WorldConquestGame.Shared.Models
 @using WorldConquestGame.Client.Pages
+@using WorldConquestGame.Client.Shared
 
 @inject IJSRuntime JS
 @inject WorldConquestGame.Client.Services.KentTownGameService TownGameService
@@ -32,6 +33,7 @@
     <div style="flex:1 1 auto;position:relative;">
         <div id="kent-town-map" class="map" style="height:100%;width:100%;position:relative;"></div>
         <KentTownQuestionPanel />
+        <TownGuessModal IsOpen="@IsModalOpen" Title="Identify Town or Village" Question="What town or village is this?" CorrectAnswer="@ModalCorrectAnswer" OnSubmit="OnModalSubmit" OnClose="OnModalClose" />
     </div>
 </div>
 
@@ -42,13 +44,18 @@
     private KentTownList? TownListRef;
     private bool _initialized;
 
+        private bool IsModalOpen = false;
+        private string ModalCorrectAnswer = "";
+        private string ModalPinId = "";
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             objRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("sessionStorage.setItem", "showCountryLabels", "false");
-            await JS.InvokeVoidAsync("mapInterop.initMap", "kent-town-map", "data/kent-towns-villages.geojson", objRef);
+                // All pins start as red
+                await JS.InvokeVoidAsync("mapInterop.initMap", "kent-town-map", "data/kent-towns-villages.geojson", objRef, "#dc3545"); // red
             await EnsureTownsLoadedAsync();
             TownGameService.TownConquered += OnTownConquered;
             TownGameService.ResetRequested += OnResetRequested;
@@ -82,9 +89,38 @@
     }
 
     [JSInvokable]
-    public Task OnTownClicked(string id)
+        public Task OnTownClicked(string id)
+        {
+            // Find the correct town name
+            var town = TownGameService.Towns.FirstOrDefault(t => string.Equals(t.Code, id, StringComparison.OrdinalIgnoreCase));
+            if (town != null)
+            {
+                ModalCorrectAnswer = town.Name;
+                ModalPinId = id;
+                IsModalOpen = true;
+                StateHasChanged();
+            }
+            return Task.CompletedTask;
+        }
+    private async Task OnModalSubmit(string answer)
     {
-        TownGameService.RaiseTownClicked(id);
+        // Mark pin as green
+        await JS.InvokeAsync<object?>("mapInterop.setCountryConqueredAny", new[] { ModalPinId }, new[] { "#28a745" });
+        // Optionally update model
+        var town = TownGameService.Towns.FirstOrDefault(t => string.Equals(t.Code, ModalPinId, StringComparison.OrdinalIgnoreCase));
+        if (town != null)
+        {
+            town.IsConquered = true;
+            town.Color = "#28a745";
+        }
+        IsModalOpen = false;
+        StateHasChanged();
+    }
+
+    private Task OnModalClose()
+    {
+        IsModalOpen = false;
+        StateHasChanged();
         return Task.CompletedTask;
     }
 
