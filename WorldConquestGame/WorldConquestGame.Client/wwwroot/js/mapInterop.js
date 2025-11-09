@@ -689,21 +689,22 @@ window.mapInterop = {
         try {
             var layer = window.mapInterop._layersById[id];
             if (layer) {
-                layer.setStyle({ color: '#222', weight: 1, fillColor: (color || '#ffcc00'), fillOpacity: 0.6 });
+                // If it's a marker (Kent towns), update its icon
+                if (layer instanceof L.Marker && layer.setIcon) {
+                    layer.setIcon(greenIcon);
+                    console.log('setIcon called for', id, layer, greenIcon);
+                } else if (layer.setStyle) {
+                    layer.setStyle({ color: '#222', weight: 1, fillColor: (color || '#ffcc00'), fillOpacity: 0.6 });
+                }
                 try {
-                    // Prefer human-readable name from feature properties; fallbacks for common keys
                     var name = window.mapInterop._resolveName(layer ? layer.feature : null, id);
-                    // Try to place a persistent label marker at the polygon centroid (or bounds center)
                     var map = window.mapInterop._map;
                     var center = null;
                     try {
-                        // Prefer a true interior point when turf is available (handles complex polygons)
                         if (window.turf && layer && layer.feature) {
                             try {
-                                // Prefer interior point on the largest polygon part (helps multi-part countries like Norway)
                                 var interior = window.mapInterop._getTurfInteriorPointForLargestPolygon(layer) || null;
                                 if (!interior) {
-                                    // fallback to pointOnFeature for the whole feature
                                     try {
                                         var whole = window.turf.pointOnFeature(layer.feature);
                                         if (whole && whole.geometry && whole.geometry.coordinates) {
@@ -715,11 +716,9 @@ window.mapInterop = {
                                 if (interior) center = interior;
                             } catch (e) { /* turf failed, fall through */ }
                         }
-                        // Fallback: centroid of largest polygon part
                         if (!center && map && layer && layer.getLatLngs) {
                             center = window.mapInterop._getLargestPolygonCenter(layer, map) || null;
                         }
-                        // Final fallback: bounds center or single LatLng
                         if (!center) {
                             if (layer.getBounds) center = layer.getBounds().getCenter();
                             else if (layer.getLatLng) center = layer.getLatLng();
@@ -727,23 +726,18 @@ window.mapInterop = {
                     } catch (e) { center = null; }
 
                     if (map && center) {
-                        // Only place persistent labels if allowed
                         try {
                             if (window.mapInterop._showCountryLabels) {
-                                // use offshore-aware placement helper which will remove any existing marker/connector
                                 window.mapInterop._maybePlaceOffshoreLabel(layer, id, name, center);
                             } else {
-                                // ensure any existing labels/connectors for this id are removed
                                 try { if (window.mapInterop._labelMarkers[id]) { map.removeLayer(window.mapInterop._labelMarkers[id]); delete window.mapInterop._labelMarkers[id]; } } catch (e) { }
                                 try { if (window.mapInterop._labelConnectors && window.mapInterop._labelConnectors[id]) { var obj = window.mapInterop._labelConnectors[id]; if (obj.line) try { map.removeLayer(obj.line); } catch (e) { } if (obj.arrow) try { map.removeLayer(obj.arrow); } catch (e) { } delete window.mapInterop._labelConnectors[id]; } } catch (e) { }
                             }
                         } catch (e) { /* fallback below */ }
                     } else {
-                        // fallback to permanent tooltip centered on the polygon (only if labels enabled)
                         if (window.mapInterop._showCountryLabels) {
                             if (layer.bindTooltip) layer.bindTooltip(name, { permanent: true, direction: 'center', className: 'country-label' }).openTooltip();
                         } else {
-                            // ensure any existing permanent tooltip is closed/removed
                             try { if (layer.closeTooltip) layer.closeTooltip(); } catch (e) { }
                         }
                     }
@@ -759,18 +753,16 @@ window.mapInterop = {
             if (!ids) return null;
             var matched = [];
             var unmatched = [];
-            // Build a color map so retries can re-use the same per-id color when applicable
             var colorMap = {};
             var isArrayColors = Array.isArray(colorOrColors);
             for (var i = 0; i < ids.length; i++) {
                 var id = ids[i];
                 if (!id) continue;
-                // assign color for this id (either per-index or the single provided color)
                 try { colorMap[id] = (isArrayColors ? colorOrColors[i] : colorOrColors) || '#dc3545'; } catch (e) { colorMap[id] = '#dc3545'; }
                 console.log('mapInterop: trying to apply style for id', id, ' color=', colorMap[id]);
-                // Check if layer exists for this id
                 if (window.mapInterop._layersById[id]) {
                     matched.push(id);
+                    window.mapInterop.setCountryConquered(id, colorMap[id]);
                 } else {
                     unmatched.push(id);
                 }

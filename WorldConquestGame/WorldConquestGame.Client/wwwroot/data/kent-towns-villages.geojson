@@ -23,7 +23,7 @@
     },
     {
       "type": "Feature",
-      "geometry": { "type": "Point", "coordinates": [1.3080, 51.1290] },
+      "geometry": { "type": "Point", "coordinates": [1.311140, 51.1297] },
       "properties": { "name": "Dover" }
     }
   ]
