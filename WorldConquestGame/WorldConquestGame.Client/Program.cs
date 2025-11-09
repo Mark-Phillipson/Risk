@@ -14,5 +14,7 @@ builder.Services.AddScoped<WorldConquestGame.Client.Services.GameService>();
 builder.Services.AddScoped<WorldConquestGame.Client.Services.StorageService>();
 builder.Services.AddScoped<WorldConquestGame.Client.Services.UkCountyService>();
 builder.Services.AddScoped<WorldConquestGame.Client.Services.UkCountyGameService>();
+builder.Services.AddScoped<WorldConquestGame.Client.Services.KentTownService>();
+builder.Services.AddScoped<WorldConquestGame.Client.Services.KentTownGameService>();
 
 await builder.Build().RunAsync();

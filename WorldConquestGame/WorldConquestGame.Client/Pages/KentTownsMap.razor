@@ -1,0 +1,162 @@
+@page "/kent-towns"
+@using System.Linq
+@using WorldConquestGame.Shared.Models
+@inject IJSRuntime JS
+@inject WorldConquestGame.Client.Services.KentTownGameService TownGameService
+@inject WorldConquestGame.Client.Services.KentTownService TownService
+@implements IDisposable
+
+<div class="map-page">
+    <div id="kent-town-map" class="map" style="height:500px;"></div>
+    <div class="sidebar-container">
+        <div class="sidebar-panel" style="width:@(ShowList ? "320px" : "36px");">
+            <div class="sidebar-content">
+                <div class="sidebar-body">
+                    @if (ShowList)
+                    {
+                        <KentTownList @ref="TownListRef" />
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="floating-toggle" title="Toggle towns panel" @onclick="ToggleList">
+        @if (ShowList)
+        {
+            <i class="bi bi-chevron-left"></i>
+        }
+        else
+        {
+            <i class="bi bi-list"></i>
+        }
+    </button>
+
+    <KentTownQuestionPanel />
+</div>
+
+@code {
+    private DotNetObjectReference<KentTownsMap>? objRef;
+    private bool ShowList = true;
+    private KentTownList? TownListRef;
+    private bool _initialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            objRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("sessionStorage.setItem", "showCountryLabels", "false");
+            await JS.InvokeVoidAsync("mapInterop.initMap", "kent-town-map", "data/kent-towns-villages.geojson", objRef);
+            await EnsureTownsLoadedAsync();
+            TownGameService.TownConquered += OnTownConquered;
+            TownGameService.ResetRequested += OnResetRequested;
+
+            try
+            {
+                var moved = await JS.InvokeAsync<bool>("mapInterop.setView", 51.2787, 0.5217, 9.0); // Kent center
+                if (!moved)
+                {
+                    await Task.Delay(250);
+                    await JS.InvokeAsync<bool>("mapInterop.setView", 51.2787, 0.5217, 9.0);
+                }
+            }
+            catch { }
+
+            try
+            {
+                // Load persisted towns if available
+                // ...similar to counties logic...
+            }
+            catch { }
+
+            if (TownGameService.Players.Count == 0)
+            {
+                TownGameService.Players.Add(new Player { Name = "Player 1" });
+                TownGameService.Players.Add(new Player { Name = "Player 2" });
+            }
+
+            _initialized = true;
+        }
+    }
+
+    [JSInvokable]
+    public Task OnTownClicked(string id)
+    {
+        TownGameService.RaiseTownClicked(id);
+        return Task.CompletedTask;
+    }
+
+    private void ToggleList()
+    {
+        ShowList = !ShowList;
+    }
+
+    private async Task EnsureTownsLoadedAsync()
+    {
+        if (_initialized) return;
+        try
+        {
+            var towns = await TownService.GetAllAsync();
+            if (towns != null && towns.Count > 0)
+            {
+                TownGameService.Towns = towns;
+            }
+        }
+        catch { }
+    }
+
+    private void OnTownConquered(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return;
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                var towns = TownGameService.Towns;
+                var match = towns.FirstOrDefault(t => string.Equals(t.Code, id, StringComparison.OrdinalIgnoreCase) || string.Equals(t.Name, id, StringComparison.OrdinalIgnoreCase));
+                var color = match?.Color;
+                if (string.IsNullOrEmpty(color)) color = "#28a745";
+                await JS.InvokeAsync<object?>("mapInterop.setCountryConqueredAny", new[] { id }, new[] { color });
+                if (match != null && !string.Equals(match.Code, id, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(match.Code))
+                {
+                    await JS.InvokeAsync<object?>("mapInterop.setCountryConqueredAny", new[] { match.Code }, new[] { color });
+                }
+                // Persist towns if needed
+            }
+            catch { }
+        });
+    }
+
+    private void OnResetRequested()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("console.log", "[Blazor] OnResetRequested called in KentTownsMap");
+                try
+                {
+                    foreach (var t in TownGameService.Towns)
+                    {
+                        t.IsConquered = false;
+                        t.Owner = string.Empty;
+                        t.Color = string.Empty;
+                    }
+                }
+                catch { }
+                try { await JS.InvokeVoidAsync("mapInterop.clearConquered"); } catch { }
+                // Clear persisted storage for towns if implemented
+                StateHasChanged();
+            }
+            catch { }
+        });
+    }
+
+    public void Dispose()
+    {
+        TownGameService.TownConquered -= OnTownConquered;
+        TownGameService.ResetRequested -= OnResetRequested;
+        objRef?.Dispose();
+    }
+}

@@ -61,6 +61,29 @@
                         <i class="bi bi-arrow-clockwise"></i> Reset
                     </button>
                 </nav>
+                }
+                else if (IsKentTownsMode)
+                {
+                    <nav class="continent-buttons ms-3">
+                        <button class="btn btn-sm geo-continent-btn me-1" @onclick='() => ZoomToKentRegion("North Kent")' aria-label="Zoom to North Kent">
+                            <i class="bi bi-geo-alt-fill"></i> North Kent
+                        </button>
+                        <button class="btn btn-sm geo-continent-btn me-1" @onclick='() => ZoomToKentRegion("East Kent")' aria-label="Zoom to East Kent">
+                            <i class="bi bi-geo-alt-fill"></i> East Kent
+                        </button>
+                        <button class="btn btn-sm geo-continent-btn me-1" @onclick='() => ZoomToKentRegion("South Kent")' aria-label="Zoom to South Kent">
+                            <i class="bi bi-geo-alt-fill"></i> South Kent
+                        </button>
+                        <button class="btn btn-sm geo-continent-btn me-1" @onclick='() => ZoomToKentRegion("West Kent")' aria-label="Zoom to West Kent">
+                            <i class="bi bi-geo-alt-fill"></i> West Kent
+                        </button>
+                        <button class="btn btn-sm geo-continent-btn me-2" @onclick='() => ZoomToKentRegion("Central Kent")' aria-label="Zoom to Central Kent">
+                            <i class="bi bi-geo-alt-fill"></i> Central Kent
+                        </button>
+                        <button class="btn btn-sm geo-reset-btn" @onclick="ResetAndGoToMap" aria-label="Reset saved map">
+                            <i class="bi bi-arrow-clockwise"></i> Reset
+                        </button>
+                    </nav>
             }
             <div class="nav-links">
                 <a href="map" class="geo-nav-link conquest">
@@ -89,11 +112,33 @@
                 }
             }
 
+                private bool IsKentTownsMode
+                {
+                    get
+                    {
+                        try
+                        {
+                            var rel = NavigationManager.ToBaseRelativePath(NavigationManager.Uri)?.TrimEnd('/') ?? string.Empty;
+                            return string.Equals(rel, "kent-towns", StringComparison.OrdinalIgnoreCase);
+                        }
+                        catch
+                        {
+                            return false;
+                        }
+                    }
+                }
+
             private async Task ZoomToUkRegion(string region)
             {
                 // This is a placeholder for zooming to a UK region. You can implement mapInterop logic as needed.
                 await JS.InvokeVoidAsync("mapInterop.zoomToUkRegion", region);
             }
+
+                private async Task ZoomToKentRegion(string region)
+                {
+                    // This is a placeholder for zooming to a Kent region. You can implement mapInterop logic as needed.
+                    await JS.InvokeVoidAsync("mapInterop.zoomToKentRegion", region);
+                }
             private bool ShouldShowContinentButtons
             {
                 get

@@ -1,0 +1,30 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [0.5217, 51.2787] },
+      "properties": { "name": "Maidstone" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [0.0731, 51.3807] },
+      "properties": { "name": "Gillingham" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [0.1749, 51.4432] },
+      "properties": { "name": "Chatham" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [0.8894, 51.2782] },
+      "properties": { "name": "Canterbury" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [1.0837, 51.1332] },
+      "properties": { "name": "Dover" }
+    }
+  ]
+}

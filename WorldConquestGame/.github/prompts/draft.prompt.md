@@ -11,6 +11,9 @@ So the game would have 9 main modes:
 7. India mode (states of India)
 8. Nato mode (countries of Nato)
 9. Ireland mode (counties of Ireland)
+10. Towns and villages of Kent
 
- initially can we start with number two and get that working first?
+  number one and number two are complete.
+   can we start on number ten next please?
+   
  
