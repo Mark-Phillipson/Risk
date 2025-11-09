@@ -197,27 +197,29 @@ window.mapInterop = {
         return fallbackId || '';
     },
 
-    initMap: function (elementId, geoJsonPath) {
+    initMap: function (elementId, geoJsonPath, dotNetRef, initialColor) {
         // elementId: id of the map div
         // geoJsonPath: path to GeoJSON file
-        // optional 3rd arg (dotNetRef) is provided by Blazor for callbacks
-        var args = Array.prototype.slice.call(arguments);
-        var element = args[0];
-        var geo = args[1];
-        var dotNetRef = args.length > 2 ? args[2] : null;
+        // dotNetRef: Blazor callback
+        // initialColor: color for initial pins
+        var element = elementId;
+        var geo = geoJsonPath;
+        // dotNetRef and initialColor are optional
+        // If only 3 args, treat 3rd as dotNetRef, color as default
+        if (typeof dotNetRef === "string" && !initialColor) {
+            initialColor = dotNetRef;
+            dotNetRef = null;
+        }
+        if (!initialColor) initialColor = "#dc3545";
 
         var map = L.map(element).setView([20, 0], 2);
-        // keep a reference so other functions can add markers/tooltips independent of local scope
         window.mapInterop._map = map;
-        // remember the initial view so we can reset to it via keyboard (Home / 0)
         window.mapInterop._initialCenter = [20, 0];
         window.mapInterop._initialZoom = 2;
 
-        // Ensure the map container is keyboard-focusable so key events can be captured.
         try {
             var container = map.getContainer();
             if (container && !container.hasAttribute('tabindex')) container.setAttribute('tabindex', '0');
-            // Add a keydown listener to support Home and 0 as "reset view" keys
             container.addEventListener('keydown', function (ev) {
                 try {
                     var k = ev.key || ev.code || '';
@@ -227,27 +229,22 @@ window.mapInterop = {
                                 window.mapInterop._map.setView(window.mapInterop._initialCenter, window.mapInterop._initialZoom);
                                 ev.preventDefault();
                             }
-                        } catch (e) { /* ignore errors */ }
+                        } catch (e) { }
                     }
                 } catch (e) { }
             });
-        } catch (e) { /* ignore focusability/keybinding failures */ }
+        } catch (e) { }
 
-        // Use a basemap without place labels so only our conquered-country labels are visible.
-        // Carto 'light_nolabels' tiles provide a clean unlabeled background.
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
         }).addTo(map);
 
-        // Read showCountryLabels flag from sessionStorage (string 'true'/'false').
         try {
             var s = sessionStorage.getItem('showCountryLabels');
             if (s === 'false') window.mapInterop._showCountryLabels = false;
             else if (s === 'true') window.mapInterop._showCountryLabels = true;
         } catch (e) { }
 
-        // If labels are disabled, inject a stylesheet to forcibly hide any label DOM
-        // (covers cases where labels may be created before the flag check completes).
         try {
             if (!window.mapInterop._showCountryLabels) {
                 try {
@@ -259,7 +256,6 @@ window.mapInterop = {
                         styleEl.appendChild(document.createTextNode('.country-label, .country-label.offshore-label, .leaflet-country-tooltip { display: none !important; }'));
                         document.head.appendChild(styleEl);
                     }
-                    // also remove any existing label DOM nodes that may have been added earlier
                     try {
                         var nodes = document.querySelectorAll('.country-label, .country-label.offshore-label, .leaflet-country-tooltip');
                         if (nodes && nodes.length) {
@@ -268,7 +264,6 @@ window.mapInterop = {
                     } catch (e) { }
                 } catch (e) { }
             } else {
-                // If labels are enabled, ensure the stylesheet is removed if present
                 try {
                     var sid = document.getElementById('mapinterop-hide-country-labels');
                     if (sid) sid.parentNode.removeChild(sid);
@@ -276,7 +271,6 @@ window.mapInterop = {
             }
         } catch (e) { }
 
-        // If labels are disabled, ensure any pre-existing label markers/tooltips are removed
         try {
             if (!window.mapInterop._showCountryLabels) {
                 try {
@@ -293,7 +287,6 @@ window.mapInterop = {
                         }
                     }
                     window.mapInterop._labelConnectors = {};
-                    // Close any permanent tooltips bound to layers
                     if (window.mapInterop._layersById) {
                         for (var id in window.mapInterop._layersById) {
                             try { var lay = window.mapInterop._layersById[id]; if (lay && lay.closeTooltip) lay.closeTooltip(); } catch (e) { }
@@ -307,9 +300,7 @@ window.mapInterop = {
             .then(response => response.json())
             .then(data => {
                 var geoLayer = L.geoJSON(data, {
-                    // Start with features visually hidden (still interactive/clickable).
-                    // They will be revealed when setCountryConquered / setCountryConqueredAny is called.
-                    style: { color: "transparent", weight: 1, fillOpacity: 0, interactive: true },
+                    style: function() { return { color: initialColor, weight: 1, fillColor: initialColor, fillOpacity: 0.6, interactive: true }; },
                     onEachFeature: function (feature, layer) {
                         // store layer by id for later updates
                         try {

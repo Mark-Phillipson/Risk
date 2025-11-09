@@ -1,0 +1,114 @@
+@namespace WorldConquestGame.Client.Shared
+@using System.Linq
+@using CountryModel = WorldConquestGame.Shared.Models.Country
+@inject WorldConquestGame.Client.Services.KentTownService TownService
+@inject WorldConquestGame.Client.Services.KentTownGameService TownGameService
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="towns-component" style="display:flex;flex-direction:column;height:100%;">
+    <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center;">
+        <h4 style="margin:0;flex:0 0 auto;">@Title</h4>
+        <input class="form-control" placeholder="Search town/village" style="flex:1 1 auto;min-width:0;" @bind="_search" />
+    </div>
+
+    @if (TownGameService.Towns == null)
+    {
+        <p>Loading towns</p>
+    }
+    else if (!TownGameService.Towns.Any())
+    {
+        <p>No towns available.</p>
+    }
+    else
+    {
+        <ul class="town-list" style="list-style:none;padding-left:0;margin:0;overflow:auto;flex:1 1 auto;">
+            @foreach (var town in Filtered.OrderBy(t => t.Name))
+            {
+                <li class="town-list-item" @onclick="() => OnTownClicked(town)">
+                    @if (town.IsConquered)
+                    {
+                        <span class="conquered">@town.Name</span>
+                    }
+                    else
+                    {
+                        <span>@town.Name</span>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+<style>
+    .towns-component .conquered { text-decoration: line-through; color: #777; }
+    .town-list-item {
+        padding: 10px 16px;
+        border-bottom: 1px solid #e0e0e0;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .town-list-item:hover {
+        background: #f8f9fa;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Kent Towns & Villages";
+
+    private string _search = string.Empty;
+
+    private IEnumerable<CountryModel> Filtered
+    {
+        get
+        {
+            if (TownGameService.Towns == null) return Enumerable.Empty<CountryModel>();
+            var query = TownGameService.Towns.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(_search))
+            {
+                query = query.Where(t => (t.Name ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase));
+            }
+            // Remove duplicates by town name (case-insensitive)
+            return query.GroupBy(t => (t.Name ?? string.Empty).Trim().ToLowerInvariant())
+                        .Select(g => g.First());
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (TownGameService.Towns == null || TownGameService.Towns.Count == 0)
+        {
+            var loaded = await TownService.GetAllAsync();
+            if (loaded != null && loaded.Count > 0)
+            {
+                TownGameService.Towns = loaded;
+            }
+        }
+        TownGameService.TownConquered += OnTownConquered;
+    }
+
+    private async Task OnTownClicked(CountryModel town)
+    {
+        if (town == null) return;
+        try
+        {
+            var id = string.IsNullOrWhiteSpace(town.Code) ? town.Name : town.Code;
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                await JS.InvokeVoidAsync("mapInterop.zoomToCountry", id);
+            }
+        }
+        catch { }
+    }
+
+    private void OnTownConquered(string code)
+    {
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        TownGameService.TownConquered -= OnTownConquered;
+    }
+}

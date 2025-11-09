@@ -26,13 +26,13 @@
         <div style="flex:1 1 auto;overflow:auto;margin-top:52px;@(ShowList ? "" : "display:none;")">
             @if (ShowList)
             {
-                <KentTownList @ref="TownListRef" />
+                <WorldConquestGame.Client.Pages.KentTownList @ref="TownListRef" />
             }
         </div>
     </div>
     <div style="flex:1 1 auto;position:relative;">
         <div id="kent-town-map" class="map" style="height:100%;width:100%;position:relative;"></div>
-        <KentTownQuestionPanel />
+    <WorldConquestGame.Client.Pages.KentTownQuestionPanel />
         <TownGuessModal IsOpen="@IsModalOpen" Title="Identify Town or Village" Question="What town or village is this?" CorrectAnswer="@ModalCorrectAnswer" OnSubmit="OnModalSubmit" OnClose="OnModalClose" />
     </div>
 </div>
@@ -88,20 +88,22 @@
         }
     }
 
-    [JSInvokable]
-        public Task OnTownClicked(string id)
+    [JSInvokable("OnCountryClicked")]
+    public async Task OnTownClicked(string id)
+    {
+        // Find the correct town name
+        var town = TownGameService.Towns.FirstOrDefault(t => string.Equals(t.Code, id, StringComparison.OrdinalIgnoreCase));
+        if (town != null)
         {
-            // Find the correct town name
-            var town = TownGameService.Towns.FirstOrDefault(t => string.Equals(t.Code, id, StringComparison.OrdinalIgnoreCase));
-            if (town != null)
-            {
-                ModalCorrectAnswer = town.Name;
-                ModalPinId = id;
-                IsModalOpen = true;
-                StateHasChanged();
-            }
-            return Task.CompletedTask;
+            ModalCorrectAnswer = town.Name;
+            ModalPinId = id;
+            IsModalOpen = true;
+            StateHasChanged();
+            // Wait for modal to render, then set focus
+            await Task.Delay(50);
+            await JS.InvokeVoidAsync("mapInterop.focusElement", "town-modal-input", true);
         }
+    }
     private async Task OnModalSubmit(string answer)
     {
         // Mark pin as green
