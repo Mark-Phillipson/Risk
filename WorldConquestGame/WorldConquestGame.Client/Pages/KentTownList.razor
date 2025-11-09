@@ -68,7 +68,9 @@
             {
                 query = query.Where(t => (t.Name ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase));
             }
-            return query;
+            // Remove duplicates by town name (case-insensitive)
+            return query.GroupBy(t => (t.Name ?? string.Empty).Trim().ToLowerInvariant())
+                        .Select(g => g.First());
         }
     }
 

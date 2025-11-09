@@ -1,39 +1,40 @@
+
 @page "/kent-towns"
 @using System.Linq
 @using WorldConquestGame.Shared.Models
+@using WorldConquestGame.Client.Pages
+
 @inject IJSRuntime JS
 @inject WorldConquestGame.Client.Services.KentTownGameService TownGameService
 @inject WorldConquestGame.Client.Services.KentTownService TownService
 @implements IDisposable
 
-<div class="map-page">
-    <div id="kent-town-map" class="map" style="height:500px;"></div>
-    <div class="sidebar-container">
-        <div class="sidebar-panel" style="width:@(ShowList ? "320px" : "36px");">
-            <div class="sidebar-content">
-                <div class="sidebar-body">
-                    @if (ShowList)
-                    {
-                        <KentTownList @ref="TownListRef" />
-                    }
-                </div>
-            </div>
+
+<div class="map-page" style="display:flex;flex-direction:row;height:100vh;">
+    <div class="sidebar-panel" style="width:@(ShowList ? "320px" : "36px");transition:width 0.3s;display:flex;flex-direction:column;z-index:10;position:relative;">
+        <button class="sidebar-toggle" title="Toggle towns panel" @onclick="ToggleList" style="width:36px;height:36px;position:absolute;top:8px;left:0;z-index:20;display:flex;align-items:center;justify-content:center;">
+            @if (ShowList)
+            {
+                <i class="bi bi-chevron-left" style="font-size:1.5rem;"></i>
+            }
+            else
+            {
+                <i class="bi bi-chevron-right" style="font-size:1.5rem;"></i>
+            }
+        </button>
+        <div style="flex:1 1 auto;overflow:auto;margin-top:52px;@(ShowList ? "" : "display:none;")">
+            @if (ShowList)
+            {
+                <KentTownList @ref="TownListRef" />
+            }
         </div>
     </div>
-
-    <button class="floating-toggle" title="Toggle towns panel" @onclick="ToggleList">
-        @if (ShowList)
-        {
-            <i class="bi bi-chevron-left"></i>
-        }
-        else
-        {
-            <i class="bi bi-list"></i>
-        }
-    </button>
-
-    <KentTownQuestionPanel />
+    <div style="flex:1 1 auto;position:relative;">
+        <div id="kent-town-map" class="map" style="height:100%;width:100%;position:relative;"></div>
+        <KentTownQuestionPanel />
+    </div>
 </div>
+
 
 @code {
     private DotNetObjectReference<KentTownsMap>? objRef;
