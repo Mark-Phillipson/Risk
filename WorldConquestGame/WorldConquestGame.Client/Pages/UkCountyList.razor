@@ -84,7 +84,6 @@
     private async Task OnCountyClicked(CountryModel county)
     {
         if (county == null) return;
-        if (!county.IsConquered) return;
         try
         {
             var id = string.IsNullOrWhiteSpace(county.Code) ? county.Name : county.Code;
