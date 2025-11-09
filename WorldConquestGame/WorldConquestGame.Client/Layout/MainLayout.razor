@@ -42,6 +42,26 @@
                     </button>
                 </nav>
             }
+            else if (IsUkCountiesMode)
+            {
+                <nav class="continent-buttons ms-3">
+                    <button class="btn btn-sm geo-continent-btn me-1" @onclick='() => ZoomToUkRegion("England")' aria-label="Zoom to England">
+                        <i class="bi bi-geo-alt-fill"></i> England
+                    </button>
+                    <button class="btn btn-sm geo-continent-btn me-1" @onclick='() => ZoomToUkRegion("Scotland")' aria-label="Zoom to Scotland">
+                        <i class="bi bi-geo-alt-fill"></i> Scotland
+                    </button>
+                    <button class="btn btn-sm geo-continent-btn me-1" @onclick='() => ZoomToUkRegion("Wales")' aria-label="Zoom to Wales">
+                        <i class="bi bi-geo-alt-fill"></i> Wales
+                    </button>
+                    <button class="btn btn-sm geo-continent-btn me-2" @onclick='() => ZoomToUkRegion("Northern Ireland")' aria-label="Zoom to Northern Ireland">
+                        <i class="bi bi-geo-alt-fill"></i> N. Ireland
+                    </button>
+                    <button class="btn btn-sm geo-reset-btn" @onclick="ResetAndGoToMap" aria-label="Reset saved map">
+                        <i class="bi bi-arrow-clockwise"></i> Reset
+                    </button>
+                </nav>
+            }
             <div class="nav-links">
                 <a href="map" class="geo-nav-link conquest">
                     <i class="bi bi-crosshair"></i> Conquest
@@ -53,6 +73,27 @@
         </div>
 
         @code {
+            private bool IsUkCountiesMode
+            {
+                get
+                {
+                    try
+                    {
+                        var rel = NavigationManager.ToBaseRelativePath(NavigationManager.Uri)?.TrimEnd('/') ?? string.Empty;
+                        return string.Equals(rel, "uk-counties", StringComparison.OrdinalIgnoreCase);
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            private async Task ZoomToUkRegion(string region)
+            {
+                // This is a placeholder for zooming to a UK region. You can implement mapInterop logic as needed.
+                await JS.InvokeVoidAsync("mapInterop.zoomToUkRegion", region);
+            }
             private bool ShouldShowContinentButtons
             {
                 get
@@ -60,11 +101,12 @@
                     try
                     {
                         var rel = NavigationManager.ToBaseRelativePath(NavigationManager.Uri)?.TrimEnd('/') ?? string.Empty;
-                        return !string.Equals(rel, "normal-map", StringComparison.OrdinalIgnoreCase);
+                        // Only show continent buttons on the main conquest map
+                        return string.Equals(rel, "map", StringComparison.OrdinalIgnoreCase);
                     }
                     catch
                     {
-                        return true;
+                        return false;
                     }
                 }
             }

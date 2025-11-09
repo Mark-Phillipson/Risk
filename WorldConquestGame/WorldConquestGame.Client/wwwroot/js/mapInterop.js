@@ -1,4 +1,56 @@
 window.mapInterop = {
+    // Zoom the map to the bounding box of all features matching the provided UK region name.
+    // Region name should match a property on the features (we'll check properties.region or properties.REGION or properties.country_region)
+    zoomToUkRegion: function (regionName) {
+        try {
+            if (!window.mapInterop._geoLayer || !window.mapInterop._map || !regionName) return;
+            var layer = window.mapInterop._geoLayer;
+            var bounds = null;
+            layer.eachLayer(function (l) {
+                try {
+                    var props = l.feature && l.feature.properties ? l.feature.properties : {};
+                    // Try to match region by several possible property names
+                    var r = props.region || props.REGION || props.country_region || props.CountryRegion || '';
+                    // Fallback: try to match by country name for England, Scotland, Wales, Northern Ireland
+                    var name = (props.name || props.NAME || '').toString().toLowerCase();
+                    var target = regionName.toString().toLowerCase();
+                    // Accept match if region or name matches
+                    if (r && r.toLowerCase() === target) {
+                        var b = l.getBounds ? l.getBounds() : null;
+                        if (b) {
+                            if (!bounds) bounds = b;
+                            else bounds.extend(b);
+                        }
+                    } else if (name === target) {
+                        var b = l.getBounds ? l.getBounds() : null;
+                        if (b) {
+                            if (!bounds) bounds = b;
+                            else bounds.extend(b);
+                        }
+                    }
+                } catch (e) { }
+            });
+            if (bounds) {
+                window.mapInterop._map.fitBounds(bounds, { padding: [40, 40] });
+                return true;
+            } else {
+                // Fallback: use hardcoded approximate bounding boxes for UK regions
+                var lower = regionName.toString().toLowerCase();
+                var boxes = {
+                    'england': [[49.9, -6.5], [55.8, 1.8]],
+                    'scotland': [[54.5, -7.5], [60.9, -0.8]],
+                    'wales': [[51.3, -5.5], [53.5, -2.8]],
+                    'northern ireland': [[54.0, -8.2], [55.5, -5.4]]
+                };
+                if (boxes[lower]) {
+                    var b = L.latLngBounds(boxes[lower]);
+                    window.mapInterop._map.fitBounds(b, { padding: [40, 40] });
+                    return true;
+                }
+                return false;
+            }
+        } catch (e) { console.error('mapInterop.zoomToUkRegion error', e); return false; }
+    },
     // Opens a new tab with the Wikipedia page for the given country name
     openWikipediaTab: function (countryName) {
         if (!countryName) return;
