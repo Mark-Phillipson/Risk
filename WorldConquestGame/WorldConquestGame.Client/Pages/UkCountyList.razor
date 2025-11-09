@@ -11,11 +11,11 @@
         <input class="form-control" placeholder="Search county" style="flex:1 1 auto;min-width:0;" @bind="_search" />
     </div>
 
-    @if (_counties == null)
+    @if (CountyGameService.Counties == null)
     {
         <p>Loading counties…</p>
     }
-    else if (!_counties.Any())
+    else if (!CountyGameService.Counties.Any())
     {
         <p>No counties available.</p>
     }
@@ -48,14 +48,14 @@
     public string Title { get; set; } = "UK Counties";
 
     private string _search = string.Empty;
-    private List<CountryModel>? _counties;
+    // Use CountyGameService.Counties directly for live updates
 
     private IEnumerable<CountryModel> Filtered
     {
         get
         {
-            if (_counties == null) return Enumerable.Empty<CountryModel>();
-            var query = _counties.AsEnumerable();
+            if (CountyGameService.Counties == null) return Enumerable.Empty<CountryModel>();
+            var query = CountyGameService.Counties.AsEnumerable();
             if (!string.IsNullOrWhiteSpace(_search))
             {
                 query = query.Where(c => (c.Name ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase));
@@ -66,46 +66,20 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _counties = await CountyService.GetAllAsync();
-
-        if (_counties != null && (_counties.Count > 0))
+        if (CountyGameService.Counties == null || CountyGameService.Counties.Count == 0)
         {
-            if (CountyGameService.Counties == null || CountyGameService.Counties.Count == 0)
+            var loaded = await CountyService.GetAllAsync();
+            if (loaded != null && loaded.Count > 0)
             {
-                CountyGameService.Counties = _counties;
-            }
-            else
-            {
-                MergeFromGameService();
+                CountyGameService.Counties = loaded;
             }
         }
-
         CountyGameService.CountyConquered += OnCountyConquered;
     }
 
-    protected override Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            MergeFromGameService();
-        }
-        return Task.CompletedTask;
-    }
+    // No need to merge on render; always use live reference
 
-    private void MergeFromGameService()
-    {
-        if (_counties == null || CountyGameService.Counties == null) return;
-        foreach (var county in _counties)
-        {
-            var match = CountyGameService.Counties.FirstOrDefault(c => string.Equals(c.Code, county.Code, StringComparison.OrdinalIgnoreCase));
-            if (match != null)
-            {
-                county.IsConquered = match.IsConquered;
-                county.Owner = match.Owner;
-                county.Color = match.Color;
-            }
-        }
-    }
+    // MergeFromGameService no longer needed
 
     private async Task OnCountyClicked(CountryModel county)
     {
@@ -124,13 +98,7 @@
 
     private void OnCountyConquered(string code)
     {
-        if (string.IsNullOrEmpty(code) || _counties == null) return;
-        var match = _counties.FirstOrDefault(c => string.Equals(c.Code, code, StringComparison.OrdinalIgnoreCase));
-        if (match != null)
-        {
-            match.IsConquered = true;
-            StateHasChanged();
-        }
+        StateHasChanged(); // UI will update from CountyGameService.Counties
     }
 
     public void Dispose()
