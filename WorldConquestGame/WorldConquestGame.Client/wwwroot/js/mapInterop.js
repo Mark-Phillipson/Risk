@@ -7,6 +7,14 @@ var redIcon = L.icon({
     popupAnchor: [1, -34],
     shadowSize: [41, 41]
 });
+var greenIcon = L.icon({
+    iconUrl: '/img/marker-icon-green.png',
+    shadowUrl: '/img/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
 window.mapInterop = {
     // Zoom the map to the bounding box of all features matching the provided Kent region name.
     zoomToKentRegion: function (regionName) {
@@ -568,7 +576,7 @@ window.mapInterop = {
     }
 
     // Helper: optionally place the label offshore with a connector if the polygon is narrow/elongated
-    , _maybePlaceOffshoreLabel: function (layer, id, name, center) {
+    , _maybePlaceOffshoreLabel: function (layer, id, name, center, conquered) {
         try {
             var map = window.mapInterop._map;
             if (!map || !layer || !center) return null;
@@ -590,7 +598,7 @@ window.mapInterop = {
             var latlngs = layer.getLatLngs ? layer.getLatLngs() : null;
             if (!latlngs) {
                 // place normal marker
-                var m = L.marker(center, { icon: redIcon }).addTo(map);
+                var m = L.marker(center, { icon: conquered ? greenIcon : redIcon }).addTo(map);
                 window.mapInterop._labelMarkers[id] = m;
                 return m;
             }
@@ -619,7 +627,7 @@ window.mapInterop = {
                 } catch (e) { }
             }
             if (!isFinite(minX) || !isFinite(minY)) {
-                var m2 = L.marker(center, { icon: redIcon }).addTo(map);
+                var m2 = L.marker(center, { icon: conquered ? greenIcon : redIcon }).addTo(map);
                 window.mapInterop._labelMarkers[id] = m2;
                 return m2;
             }
@@ -635,7 +643,7 @@ window.mapInterop = {
             } catch (e) { }
 
             if (!shouldOffshore) {
-                var m3 = L.marker(center, { icon: redIcon }).addTo(map);
+                var m3 = L.marker(center, { icon: conquered ? greenIcon : redIcon }).addTo(map);
                 window.mapInterop._labelMarkers[id] = m3;
                 return m3;
             }
@@ -655,7 +663,7 @@ window.mapInterop = {
                     var angleDeg = (angleRad * 180 / Math.PI) + 90; // adjust arrow orientation
                     var arrowSpan = '<span style="display:inline-block; margin-left:8px; transform: rotate(' + angleDeg + 'deg); font-size:14px; color:#111;">&#9650;</span>';
                     var labelHtml = '<span class="label-text">' + (name || '') + '</span>' + arrowSpan;
-                    var offshoreMarker = L.marker(labelLatLng, { icon: redIcon }).addTo(map);
+                    var offshoreMarker = L.marker(labelLatLng, { icon: conquered ? greenIcon : redIcon }).addTo(map);
                     window.mapInterop._labelMarkers[id] = offshoreMarker;
 
                     // draw connector line from polygon centroid to offshore label (no separate arrow marker)
@@ -669,7 +677,7 @@ window.mapInterop = {
                 }
             } catch (e) {
                 // fallback: normal marker
-                var fm = L.marker(center, { icon: redIcon }).addTo(map);
+                var fm = L.marker(center, { icon: conquered ? greenIcon : redIcon }).addTo(map);
                 window.mapInterop._labelMarkers[id] = fm;
                 return fm;
             }
@@ -762,7 +770,16 @@ window.mapInterop = {
                 var layer = window.mapInterop._layersById[id] || window.mapInterop._layersById[(id || '').toUpperCase()] || window.mapInterop._layersById[(id || '').toLowerCase()];
                 if (layer) {
                     console.log('mapInterop: setStyle for', id, 'with fillColor', colorMap[id]);
-                    layer.setStyle({ color: '#222', weight: 1, fillColor: (colorMap[id] || '#dc3545'), fillOpacity: 0.6 });
+                    if (layer.setStyle) {
+                        layer.setStyle({ color: '#222', weight: 1, fillColor: (colorMap[id] || '#dc3545'), fillOpacity: 0.6 });
+                    } else if (layer.setIcon) {
+                        // Use green icon for conquered markers
+                        if (colorMap[id] === '#28a745') {
+                            layer.setIcon(greenIcon);
+                        } else {
+                            layer.setIcon(redIcon);
+                        }
+                    }
                     try {
                         var name = window.mapInterop._resolveName(layer ? layer.feature : null, id);
                         var map = window.mapInterop._map;
@@ -803,7 +820,7 @@ window.mapInterop = {
 
                         if (map && center) {
                             try {
-                                if (window.mapInterop._showCountryLabels) window.mapInterop._maybePlaceOffshoreLabel(layer, id, name, center);
+                                if (window.mapInterop._showCountryLabels) window.mapInterop._maybePlaceOffshoreLabel(layer, id, name, center, true);
                                 else {
                                     try { if (window.mapInterop._labelMarkers[id]) { map.removeLayer(window.mapInterop._labelMarkers[id]); delete window.mapInterop._labelMarkers[id]; } } catch (e) { }
                                     try { if (window.mapInterop._labelConnectors && window.mapInterop._labelConnectors[id]) { var obj2 = window.mapInterop._labelConnectors[id]; if (obj2.line) try { map.removeLayer(obj2.line); } catch (e) { } if (obj2.arrow) try { map.removeLayer(obj2.arrow); } catch (e) { } delete window.mapInterop._labelConnectors[id]; } } catch (e) { }

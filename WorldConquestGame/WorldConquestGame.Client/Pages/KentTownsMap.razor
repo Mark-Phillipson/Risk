@@ -119,11 +119,12 @@
         StateHasChanged();
     }
 
-    private Task OnModalClose()
+    public async Task OnModalClose()
     {
+        Console.WriteLine("[KentTownsMap] OnModalClose called. Setting IsModalOpen=false");
         IsModalOpen = false;
         StateHasChanged();
-        return Task.CompletedTask;
+        await Task.CompletedTask;
     }
 
     private void ToggleList()
