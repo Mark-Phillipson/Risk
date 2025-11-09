@@ -16,34 +16,65 @@ var greenIcon = L.icon({
     shadowSize: [41, 41]
 });
 window.mapInterop = {
+    // Map UI region names to arrays of feature names in the data
+    _kentRegionMap: {
+        'south kent': ['maidstone', 'dover'],
+        'north kent': ['gillingham', 'chatham', 'canterbury'],
+        'central kent': ['maidstone', 'canterbury'],
+        'east kent': ['canterbury', 'dover'],
+        'west kent': ['maidstone', 'gillingham', 'chatham'],
+    },
     // Zoom the map to the bounding box of all features matching the provided Kent region name.
     zoomToKentRegion: function (regionName) {
         try {
             if (!window.mapInterop._geoLayer || !window.mapInterop._map || !regionName) return;
             var layer = window.mapInterop._geoLayer;
             var bounds = null;
+            var found = false;
+            var matchedLatLngs = [];
+            var target = regionName.toString().toLowerCase();
+            // Check if regionName is a mapped region
+            var mappedNames = window.mapInterop._kentRegionMap[target] || [target];
+            var availableRegions = [];
+            var matchedFeatures = [];
             layer.eachLayer(function (l) {
                 try {
                     var props = l.feature && l.feature.properties ? l.feature.properties : {};
                     var r = props.region || props.REGION || props.kent_region || props.KentRegion || '';
                     var name = (props.name || props.NAME || '').toString().toLowerCase();
-                    var target = regionName.toString().toLowerCase();
-                    if (r && r.toLowerCase() === target) {
-                        var b = l.getBounds ? l.getBounds() : null;
-                        if (b) {
-                            if (!bounds) bounds = b;
-                            else bounds.extend(b);
-                        }
-                    } else if (name === target) {
-                        var b = l.getBounds ? l.getBounds() : null;
-                        if (b) {
-                            if (!bounds) bounds = b;
-                            else bounds.extend(b);
+                    var match = false;
+                    // Match if feature name or region matches any mapped name
+                    for (var i = 0; i < mappedNames.length; i++) {
+                        var mapped = mappedNames[i];
+                        if (r && r.toLowerCase() === mapped) match = true;
+                        else if (name === mapped) match = true;
+                    }
+                    availableRegions.push(r || name);
+                    if (match) {
+                        // For point features, use getLatLng
+                        if (l.getLatLng) {
+                            matchedLatLngs.push(l.getLatLng());
+                            found = true;
+                            matchedFeatures.push(r || name);
+                        } else if (l.getBounds) {
+                            var b = l.getBounds();
+                            if (b) {
+                                if (!bounds) bounds = b;
+                                else bounds = bounds.extend(b);
+                                found = true;
+                                matchedFeatures.push(r || name);
+                            }
                         }
                     }
                 } catch (e) { }
             });
-            if (bounds) {
+            // If we matched point features, create bounds from all points
+            if (matchedLatLngs.length > 0) {
+                bounds = L.latLngBounds(matchedLatLngs);
+            }
+            console.log('zoomToKentRegion: availableRegions=', availableRegions);
+            console.log('zoomToKentRegion: matchedFeatures=', matchedFeatures);
+            if (found && bounds && bounds.isValid && bounds.isValid()) {
                 window.mapInterop._map.fitBounds(bounds, { padding: [40, 40] });
                 return true;
             } else {
