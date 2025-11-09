@@ -1,3 +1,12 @@
+// Use a custom red marker icon for pins
+var redIcon = L.icon({
+    iconUrl: '/img/marker-icon-red.png',
+    shadowUrl: '/img/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
 window.mapInterop = {
     // Zoom the map to the bounding box of all features matching the provided Kent region name.
     zoomToKentRegion: function (regionName) {
@@ -300,7 +309,20 @@ window.mapInterop = {
             .then(response => response.json())
             .then(data => {
                 var geoLayer = L.geoJSON(data, {
-                    style: function() { return { color: initialColor, weight: 1, fillColor: initialColor, fillOpacity: 0.6, interactive: true }; },
+                    style: function() {
+                        console.log('mapInterop: setting initial style to', initialColor);
+                        setTimeout(function() {
+                            document.querySelectorAll('.leaflet-interactive').forEach(function(el) {
+                                el.setAttribute('fill', '#dc3545');
+                                el.setAttribute('stroke', '#dc3545');
+                                console.log('mapInterop: forced SVG fill/stroke to #dc3545', el);
+                            });
+                        }, 1000);
+                        return { color: '#dc3545', weight: 1, fillColor: '#dc3545', fillOpacity: 0.6, interactive: true };
+                    },
+                    pointToLayer: function(feature, latlng) {
+                        return L.marker(latlng, { icon: redIcon });
+                    },
                     onEachFeature: function (feature, layer) {
                         // store layer by id for later updates
                         try {
@@ -568,7 +590,7 @@ window.mapInterop = {
             var latlngs = layer.getLatLngs ? layer.getLatLngs() : null;
             if (!latlngs) {
                 // place normal marker
-                var m = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                var m = L.marker(center, { icon: redIcon }).addTo(map);
                 window.mapInterop._labelMarkers[id] = m;
                 return m;
             }
@@ -597,7 +619,7 @@ window.mapInterop = {
                 } catch (e) { }
             }
             if (!isFinite(minX) || !isFinite(minY)) {
-                var m2 = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                var m2 = L.marker(center, { icon: redIcon }).addTo(map);
                 window.mapInterop._labelMarkers[id] = m2;
                 return m2;
             }
@@ -613,7 +635,7 @@ window.mapInterop = {
             } catch (e) { }
 
             if (!shouldOffshore) {
-                var m3 = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                var m3 = L.marker(center, { icon: redIcon }).addTo(map);
                 window.mapInterop._labelMarkers[id] = m3;
                 return m3;
             }
@@ -633,7 +655,7 @@ window.mapInterop = {
                     var angleDeg = (angleRad * 180 / Math.PI) + 90; // adjust arrow orientation
                     var arrowSpan = '<span style="display:inline-block; margin-left:8px; transform: rotate(' + angleDeg + 'deg); font-size:14px; color:#111;">&#9650;</span>';
                     var labelHtml = '<span class="label-text">' + (name || '') + '</span>' + arrowSpan;
-                    var offshoreMarker = L.marker(labelLatLng, { interactive: false, icon: L.divIcon({ className: 'country-label offshore-label', html: labelHtml, iconSize: null }) }).addTo(map);
+                    var offshoreMarker = L.marker(labelLatLng, { icon: redIcon }).addTo(map);
                     window.mapInterop._labelMarkers[id] = offshoreMarker;
 
                     // draw connector line from polygon centroid to offshore label (no separate arrow marker)
@@ -647,7 +669,7 @@ window.mapInterop = {
                 }
             } catch (e) {
                 // fallback: normal marker
-                var fm = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                var fm = L.marker(center, { icon: redIcon }).addTo(map);
                 window.mapInterop._labelMarkers[id] = fm;
                 return fm;
             }
@@ -735,11 +757,12 @@ window.mapInterop = {
                 var id = ids[i];
                 if (!id) continue;
                 // assign color for this id (either per-index or the single provided color)
-                try { colorMap[id] = (isArrayColors ? colorOrColors[i] : colorOrColors) || '#ffcc00'; } catch (e) { colorMap[id] = '#ffcc00'; }
+                try { colorMap[id] = (isArrayColors ? colorOrColors[i] : colorOrColors) || '#dc3545'; } catch (e) { colorMap[id] = '#dc3545'; }
                 console.log('mapInterop: trying to apply style for id', id, ' color=', colorMap[id]);
                 var layer = window.mapInterop._layersById[id] || window.mapInterop._layersById[(id || '').toUpperCase()] || window.mapInterop._layersById[(id || '').toLowerCase()];
                 if (layer) {
-                    layer.setStyle({ color: '#222', weight: 1, fillColor: (colorMap[id] || '#ffcc00'), fillOpacity: 0.6 });
+                    console.log('mapInterop: setStyle for', id, 'with fillColor', colorMap[id]);
+                    layer.setStyle({ color: '#222', weight: 1, fillColor: (colorMap[id] || '#dc3545'), fillOpacity: 0.6 });
                     try {
                         var name = window.mapInterop._resolveName(layer ? layer.feature : null, id);
                         var map = window.mapInterop._map;
@@ -827,8 +850,9 @@ window.mapInterop = {
                                 var layer2 = window.mapInterop._layersById[id2] || window.mapInterop._layersById[(id2 || '').toUpperCase()] || window.mapInterop._layersById[(id2 || '').toLowerCase()];
                                 if (layer2) {
                                     // re-apply style (use colorMap if available)
-                                    var c = (colorMap && colorMap[id2]) ? colorMap[id2] : (isArrayColors ? '#ffcc00' : colorOrColors || '#ffcc00');
-                                    layer2.setStyle({ color: '#222', weight: 1, fillColor: (c || '#ffcc00'), fillOpacity: 0.6 });
+                                    var c = (colorMap && colorMap[id2]) ? colorMap[id2] : (isArrayColors ? '#dc3545' : colorOrColors || '#dc3545');
+                                    console.log('mapInterop: retry setStyle for', id2, 'with fillColor', c);
+                                    layer2.setStyle({ color: '#222', weight: 1, fillColor: (c || '#dc3545'), fillOpacity: 0.6 });
                                     try {
                                         var name2 = window.mapInterop._resolveName(layer2 ? layer2.feature : null, id2);
                                         var map2 = window.mapInterop._map;
