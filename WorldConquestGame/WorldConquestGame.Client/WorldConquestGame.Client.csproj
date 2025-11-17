@@ -15,4 +15,10 @@
     <ProjectReference Include="..\WorldConquestGame.Shared\WorldConquestGame.Shared.csproj" />
   </ItemGroup>
 
+    <ItemGroup>
+      <Content Include="wwwroot\data\kent-towns-villages.geojson">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
 </Project>
