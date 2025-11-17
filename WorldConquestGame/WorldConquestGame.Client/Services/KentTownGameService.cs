@@ -10,6 +10,7 @@ namespace WorldConquestGame.Client.Services
         public List<Player> Players { get; set; } = new List<Player>();
         public event Action<string>? TownConquered;
         public event Action? ResetRequested;
+        public event Action? TownsLoaded;
 
         public void RaiseTownClicked(string id)
         {
@@ -24,6 +25,11 @@ namespace WorldConquestGame.Client.Services
         public void RequestReset()
         {
             ResetRequested?.Invoke();
+        }
+
+        public void NotifyTownsLoaded()
+        {
+            TownsLoaded?.Invoke();
         }
 
         public void MergePersistedTowns(List<Country> persisted)

@@ -54,9 +54,19 @@
         {
             objRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("sessionStorage.setItem", "showCountryLabels", "false");
-                // All pins start as red
-                await JS.InvokeVoidAsync("mapInterop.initMap", "kent-town-map", "data/kent-towns-villages.geojson", objRef, "#dc3545"); // red
+            
+            // Load 20 random towns first
             await EnsureTownsLoadedAsync();
+            
+            // Force the sidebar list to re-render now that towns are loaded
+            StateHasChanged();
+            
+            // Get the list of town names to pass to the map
+            var townNames = TownGameService.Towns.Select(t => t.Name).ToArray();
+            
+            // All pins start as red - pass the filtered town names to the map
+            await JS.InvokeVoidAsync("mapInterop.initMap", "kent-town-map", "data/kent-towns-villages.geojson", objRef, "#dc3545", townNames);
+            
             TownGameService.TownConquered += OnTownConquered;
             TownGameService.ResetRequested += OnResetRequested;
 
@@ -132,15 +142,14 @@
         if (_initialized) return;
         try
         {
-            var towns = await TownService.GetAllAsync();
+            // Get 20 random towns
+            var towns = await TownService.GetRandomSubsetAsync(20);
             Console.WriteLine($"[KentTownsMap] Loaded towns count: {towns?.Count ?? 0}"); // DEBUG: Output loaded town count
             if (towns != null && towns.Count > 0)
             {
-                // Always select 20 random towns for the game
-                var random = new Random();
-                var selectedTowns = towns.OrderBy(x => random.Next()).Take(20).ToList();
-                Console.WriteLine($"[KentTownsMap] Selected towns for game: {string.Join(", ", selectedTowns.Select(t => t.Name))}");
-                TownGameService.Towns = selectedTowns;
+                Console.WriteLine($"[KentTownsMap] Selected towns for game: {string.Join(", ", towns.Select(t => t.Name))}");
+                TownGameService.Towns = towns;
+                TownGameService.NotifyTownsLoaded();
             }
         }
         catch(Exception exception) { 

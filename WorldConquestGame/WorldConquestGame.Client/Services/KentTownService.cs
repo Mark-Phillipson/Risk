@@ -43,5 +43,20 @@ namespace WorldConquestGame.Client.Services
             }
             return towns;
         }
+
+        public async Task<List<Country>> GetRandomSubsetAsync(int count = 20)
+        {
+            var allTowns = await GetAllAsync();
+            if (allTowns == null || allTowns.Count == 0)
+            {
+                Console.WriteLine("[KentTownService] No towns available for random selection");
+                return new List<Country>();
+            }
+
+            var random = new Random();
+            var selectedTowns = allTowns.OrderBy(x => random.Next()).Take(count).ToList();
+            Console.WriteLine($"[KentTownService] Selected {selectedTowns.Count} random towns: {string.Join(", ", selectedTowns.Select(t => t.Name))}");
+            return selectedTowns;
+        }
     }
 }

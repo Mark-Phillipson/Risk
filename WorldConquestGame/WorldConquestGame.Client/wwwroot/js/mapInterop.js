@@ -193,11 +193,12 @@ window.mapInterop = {
         return fallbackId || '';
     },
 
-    initMap: function (elementId, geoJsonPath, dotNetRef, initialColor) {
+    initMap: function (elementId, geoJsonPath, dotNetRef, initialColor, townNamesToShow) {
         // elementId: id of the map div
         // geoJsonPath: path to GeoJSON file
         // dotNetRef: Blazor callback
         // initialColor: color for initial pins
+        // townNamesToShow: optional array of town names to display (if provided, only these towns will be shown)
         var element = elementId;
         var geo = geoJsonPath;
         // dotNetRef and initialColor are optional
@@ -295,6 +296,25 @@ window.mapInterop = {
         fetch(geo)
             .then(response => response.json())
             .then(data => {
+                // Filter features if townNamesToShow is provided
+                if (townNamesToShow && Array.isArray(townNamesToShow) && townNamesToShow.length > 0) {
+                    var townNamesSet = new Set(townNamesToShow.map(function(name) { 
+                        return name.toString().toLowerCase().trim(); 
+                    }));
+                    
+                    data.features = data.features.filter(function(feature) {
+                        try {
+                            var props = feature.properties || {};
+                            var name = (props.name || props.NAME || '').toString().toLowerCase().trim();
+                            return townNamesSet.has(name);
+                        } catch (e) {
+                            return false;
+                        }
+                    });
+                    
+                    console.log('mapInterop: Filtered to', data.features.length, 'towns from', townNamesToShow.length, 'requested');
+                }
+                
                 var geoLayer = L.geoJSON(data, {
                     style: function() {
                         console.log('mapInterop: setting initial style to', initialColor);
