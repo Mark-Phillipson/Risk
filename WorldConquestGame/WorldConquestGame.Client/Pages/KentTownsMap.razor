@@ -69,14 +69,9 @@
                     await JS.InvokeAsync<bool>("mapInterop.setView", 51.2787, 0.5217, 9.0);
                 }
             }
-            catch { }
-
-            try
-            {
-                // Load persisted towns if available
-                // ...similar to counties logic...
+            catch(Exception exception) { 
+                Console.WriteLine($"[KentTownsMap] Exception setting map view: {exception}");
             }
-            catch { }
 
             if (TownGameService.Players.Count == 0)
             {
@@ -138,12 +133,19 @@
         try
         {
             var towns = await TownService.GetAllAsync();
+            Console.WriteLine($"[KentTownsMap] Loaded towns count: {towns?.Count ?? 0}"); // DEBUG: Output loaded town count
             if (towns != null && towns.Count > 0)
             {
-                TownGameService.Towns = towns;
+                // Always select 20 random towns for the game
+                var random = new Random();
+                var selectedTowns = towns.OrderBy(x => random.Next()).Take(20).ToList();
+                Console.WriteLine($"[KentTownsMap] Selected towns for game: {string.Join(", ", selectedTowns.Select(t => t.Name))}");
+                TownGameService.Towns = selectedTowns;
             }
         }
-        catch { }
+        catch(Exception exception) { 
+            Console.WriteLine($"[KentTownsMap] Exception loading towns: {exception}");
+        }
     }
 
     private void OnTownConquered(string id)

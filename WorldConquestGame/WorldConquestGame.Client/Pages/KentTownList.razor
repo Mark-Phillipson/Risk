@@ -12,13 +12,9 @@
         <input class="form-control" placeholder="Search town/village" style="flex:1 1 auto;min-width:0;" @bind="_search" />
     </div>
 
-    @if (TownGameService.Towns == null)
+    @if (_allTowns == null || !_allTowns.Any())
     {
         <p>Loading towns…</p>
-    }
-    else if (!TownGameService.Towns.Any())
-    {
-        <p>No towns available.</p>
     }
     else
     {
@@ -59,31 +55,41 @@
 
     private string _search = string.Empty;
 
+    private List<CountryModel> _allTowns = new();
+
     private IEnumerable<CountryModel> Filtered
     {
         get
         {
-            if (TownGameService.Towns == null) return Enumerable.Empty<CountryModel>();
-            var query = TownGameService.Towns.AsEnumerable();
+            var query = _allTowns.AsEnumerable();
             if (!string.IsNullOrWhiteSpace(_search))
             {
                 query = query.Where(t => (t.Name ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase));
             }
             // Remove duplicates by town name (case-insensitive)
             return query.GroupBy(t => (t.Name ?? string.Empty).Trim().ToLowerInvariant())
-                        .Select(g => g.First());
+                        .Select(g => g.First())
+                        .Select(t => {
+                            // Reflect conquered status from game
+                            var conquered = TownGameService.Towns?.FirstOrDefault(gt => string.Equals(gt.Name, t.Name, StringComparison.OrdinalIgnoreCase))?.IsConquered ?? false;
+                            t.IsConquered = conquered;
+                            return t;
+                        });
         }
     }
 
     protected override async Task OnInitializedAsync()
     {
-        if (TownGameService.Towns == null || TownGameService.Towns.Count == 0)
+        var loaded = await TownService.GetAllAsync();
+        Console.WriteLine($"[KentTownList] Loaded towns count: {loaded?.Count ?? 0}");
+        if (loaded != null && loaded.Count > 0)
         {
-            var loaded = await TownService.GetAllAsync();
-            if (loaded != null && loaded.Count > 0)
-            {
-                TownGameService.Towns = loaded;
-            }
+            _allTowns = loaded;
+            Console.WriteLine($"[KentTownList] All loaded town names: {string.Join(", ", _allTowns.Select(t => t.Name))}");
+        }
+        else
+        {
+            Console.WriteLine("[KentTownList] No towns loaded from TownService.");
         }
         TownGameService.TownConquered += OnTownConquered;
     }

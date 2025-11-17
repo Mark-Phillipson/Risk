@@ -10,7 +10,7 @@ namespace WorldConquestGame.Client.Services
     public class KentTownService
     {
         private readonly HttpClient _httpClient;
-        public List<Country> Towns { get; set; } = new List<Country>();
+        // Removed shared Towns property to avoid caching subset
 
         public KentTownService(HttpClient httpClient)
         {
@@ -19,7 +19,7 @@ namespace WorldConquestGame.Client.Services
 
         public async Task<List<Country>> GetAllAsync()
         {
-            if (Towns.Count > 0) return Towns;
+            var towns = new List<Country>();
             var path = "data/kent-towns-villages.geojson";
             try
             {
@@ -33,12 +33,15 @@ namespace WorldConquestGame.Client.Services
                     var code = name; // Use name as code for simplicity
                     if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(code))
                     {
-                        Towns.Add(new Country { Name = name, Code = code });
+                        towns.Add(new Country { Name = name, Code = code });
                     }
                 }
             }
-            catch { }
-            return Towns;
+            catch(Exception exception)
+            {
+                Console.WriteLine($"[KentTownService] Exception loading towns: {exception}");
+            }
+            return towns;
         }
     }
 }
