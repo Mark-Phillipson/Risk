@@ -1,4 +1,106 @@
+// Use a custom red marker icon for pins
+var redIcon = L.icon({
+    iconUrl: '/img/marker-icon-red.png',
+    shadowUrl: '/img/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+var greenIcon = L.icon({
+    iconUrl: '/img/marker-icon-green.png',
+    shadowUrl: '/img/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
 window.mapInterop = {
+    // Map UI region names to arrays of feature names in the data
+    _kentRegionMap: {
+        'south kent': ['maidstone', 'dover'],
+        'north kent': ['gillingham', 'chatham', 'canterbury'],
+        'central kent': ['maidstone', 'canterbury'],
+        'east kent': ['canterbury', 'dover'],
+        'west kent': ['maidstone', 'gillingham', 'chatham'],
+    },
+    // Zoom the map to the bounding box of all features matching the provided Kent region name.
+    zoomToKentRegion: function (regionName) {
+        try {
+            if (!window.mapInterop._geoLayer || !window.mapInterop._map || !regionName) return;
+            var layer = window.mapInterop._geoLayer;
+            var bounds = null;
+            var found = false;
+            var matchedLatLngs = [];
+            var target = regionName.toString().toLowerCase();
+            // Check if regionName is a mapped region
+            var mappedNames = window.mapInterop._kentRegionMap[target] || [target];
+            var availableRegions = [];
+            var matchedFeatures = [];
+            layer.eachLayer(function (l) {
+                try {
+                    var props = l.feature && l.feature.properties ? l.feature.properties : {};
+                    var r = props.region || props.REGION || props.kent_region || props.KentRegion || '';
+                    var name = (props.name || props.NAME || '').toString().toLowerCase();
+                    var match = false;
+                    // Match if feature name or region matches any mapped name
+                    for (var i = 0; i < mappedNames.length; i++) {
+                        var mapped = mappedNames[i];
+                        if (r && r.toLowerCase() === mapped) match = true;
+                        else if (name === mapped) match = true;
+                    }
+                    availableRegions.push(r || name);
+                    if (match) {
+                        // For point features, use getLatLng
+                        if (l.getLatLng) {
+                            matchedLatLngs.push(l.getLatLng());
+                            found = true;
+                            matchedFeatures.push(r || name);
+                        } else if (l.getBounds) {
+                            var b = l.getBounds();
+                            if (b) {
+                                if (!bounds) bounds = b;
+                                else bounds = bounds.extend(b);
+                                found = true;
+                                matchedFeatures.push(r || name);
+                            }
+                        }
+                    }
+                } catch (e) { }
+            });
+            // If we matched point features, create bounds from all points
+            if (matchedLatLngs.length > 0) {
+                bounds = L.latLngBounds(matchedLatLngs);
+            }
+            console.log('zoomToKentRegion: availableRegions=', availableRegions);
+            console.log('zoomToKentRegion: matchedFeatures=', matchedFeatures);
+            if (found && bounds && bounds.isValid && bounds.isValid()) {
+                window.mapInterop._map.fitBounds(bounds, { padding: [40, 40] });
+                return true;
+            } else {
+                // Fallback: use hardcoded approximate bounding boxes for UK regions
+                var lower = regionName.toString().toLowerCase();
+                var boxes = {
+                    'england': [[49.9, -6.5], [55.8, 1.8]],
+                    'scotland': [[54.5, -7.5], [60.9, -0.8]],
+                    'wales': [[51.3, -5.5], [53.5, -2.8]],
+                    'northern ireland': [[54.0, -8.2], [55.5, -5.4]]
+                };
+                if (boxes[lower]) {
+                    var b = L.latLngBounds(boxes[lower]);
+                    window.mapInterop._map.fitBounds(b, { padding: [40, 40] });
+                    return true;
+                }
+                return false;
+            }
+        } catch (e) { console.error('mapInterop.zoomToKentRegion error', e); return false; }
+    },
+    // Opens a new tab with the Wikipedia page for the given country name
+    openWikipediaTab: function (countryName) {
+        if (!countryName) return;
+        var url = 'https://en.wikipedia.org/wiki/' + encodeURIComponent(countryName);
+        window.open(url, '_blank');
+    },
     // store references to layers by feature id (code or name)
     _layersById: {},
     // store label markers for conquered countries so they persist independent of feature tooltips
@@ -10,27 +112,110 @@ window.mapInterop = {
     // whether to show persistent country labels (can be overridden via sessionStorage 'showCountryLabels')
     _showCountryLabels: true,
 
-    initMap: function (elementId, geoJsonPath) {
+    _resolveId: function (feature) {
+        if (!feature) return '';
+        var props = feature.properties || {};
+
+        function pickFirst(list) {
+            if (!list || !list.length) return '';
+            for (var i = 0; i < list.length; i++) {
+                var val = list[i];
+                if (val !== undefined && val !== null) {
+                    var str = ('' + val).trim();
+                    if (str.length) return str;
+                }
+            }
+            return '';
+        }
+
+        // Prefer authoritative administrative codes from properties before falling back to
+        // generic identifiers such as feature.id (which is numeric for some GeoJSON sources).
+        var propertyCodes = [
+            props.ctyua23cd, props.CTYUA23CD,
+            props.ctyua22cd, props.CTYUA22CD,
+            props.ctyua21cd, props.CTYUA21CD,
+            props.lad23cd, props.LAD23CD,
+            props.lad22cd, props.LAD22CD,
+            props.gss_code, props.GSS_CODE,
+            props.gsscode, props.GSSCODE,
+            props.iso_a3, props.ISO_A3,
+            props.iso_a2, props.ISO_A2,
+            props.code, props.Code, props.CODE
+        ];
+        var selected = pickFirst(propertyCodes);
+        if (selected) return selected;
+
+        var altCandidates = [
+            props.globalid, props.GLOBALID, props.GlobalID,
+            feature.id,
+            props.name, props.NAME,
+            props.admin, props.ADMIN,
+            props.formal_en, props.FORMAL_EN
+        ];
+        selected = pickFirst(altCandidates);
+        if (selected) return selected;
+
+        try {
+            for (var key in props) {
+                if (!Object.prototype.hasOwnProperty.call(props, key)) continue;
+                if (typeof key !== 'string') continue;
+                var lower = key.toLowerCase();
+                if (lower === 'ctyua22cd' || lower === 'ctyua21cd' || lower === 'ctyua23cd' || lower.endsWith('code')) {
+                    var v = props[key];
+                    if (v !== undefined && v !== null && ('' + v).trim().length) {
+                        return ('' + v).trim();
+                    }
+                }
+            }
+        } catch (e) { }
+        return '';
+    },
+
+    _resolveName: function (feature, fallbackId) {
+        if (!feature) return fallbackId || '';
+        var props = feature.properties || {};
+        var candidates = [
+            props.name, props.NAME,
+            props.admin, props.ADMIN,
+            props.formal_en, props.FORMAL_EN,
+            props.ctyua22nm, props.CTYUA22NM,
+            props.ctyua21nm, props.CTYUA21NM,
+            props.ctyua23nm, props.CTYUA23NM,
+            props.lad22nm, props.LAD22NM,
+            props.lad23nm, props.LAD23NM
+        ];
+        for (var i = 0; i < candidates.length; i++) {
+            var val = candidates[i];
+            if (val !== undefined && val !== null && ('' + val).trim().length) {
+                return ('' + val).trim();
+            }
+        }
+        return fallbackId || '';
+    },
+
+    initMap: function (elementId, geoJsonPath, dotNetRef, initialColor) {
         // elementId: id of the map div
         // geoJsonPath: path to GeoJSON file
-        // optional 3rd arg (dotNetRef) is provided by Blazor for callbacks
-        var args = Array.prototype.slice.call(arguments);
-        var element = args[0];
-        var geo = args[1];
-        var dotNetRef = args.length > 2 ? args[2] : null;
+        // dotNetRef: Blazor callback
+        // initialColor: color for initial pins
+        var element = elementId;
+        var geo = geoJsonPath;
+        // dotNetRef and initialColor are optional
+        // If only 3 args, treat 3rd as dotNetRef, color as default
+        if (typeof dotNetRef === "string" && !initialColor) {
+            initialColor = dotNetRef;
+            dotNetRef = null;
+        }
+        if (!initialColor) initialColor = "#dc3545";
 
         var map = L.map(element).setView([20, 0], 2);
-        // keep a reference so other functions can add markers/tooltips independent of local scope
         window.mapInterop._map = map;
-        // remember the initial view so we can reset to it via keyboard (Home / 0)
         window.mapInterop._initialCenter = [20, 0];
         window.mapInterop._initialZoom = 2;
 
-        // Ensure the map container is keyboard-focusable so key events can be captured.
         try {
             var container = map.getContainer();
             if (container && !container.hasAttribute('tabindex')) container.setAttribute('tabindex', '0');
-            // Add a keydown listener to support Home and 0 as "reset view" keys
             container.addEventListener('keydown', function (ev) {
                 try {
                     var k = ev.key || ev.code || '';
@@ -40,27 +225,22 @@ window.mapInterop = {
                                 window.mapInterop._map.setView(window.mapInterop._initialCenter, window.mapInterop._initialZoom);
                                 ev.preventDefault();
                             }
-                        } catch (e) { /* ignore errors */ }
+                        } catch (e) { }
                     }
                 } catch (e) { }
             });
-        } catch (e) { /* ignore focusability/keybinding failures */ }
+        } catch (e) { }
 
-        // Use a basemap without place labels so only our conquered-country labels are visible.
-        // Carto 'light_nolabels' tiles provide a clean unlabeled background.
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
         }).addTo(map);
 
-        // Read showCountryLabels flag from sessionStorage (string 'true'/'false').
         try {
             var s = sessionStorage.getItem('showCountryLabels');
             if (s === 'false') window.mapInterop._showCountryLabels = false;
             else if (s === 'true') window.mapInterop._showCountryLabels = true;
         } catch (e) { }
 
-        // If labels are disabled, inject a stylesheet to forcibly hide any label DOM
-        // (covers cases where labels may be created before the flag check completes).
         try {
             if (!window.mapInterop._showCountryLabels) {
                 try {
@@ -72,7 +252,6 @@ window.mapInterop = {
                         styleEl.appendChild(document.createTextNode('.country-label, .country-label.offshore-label, .leaflet-country-tooltip { display: none !important; }'));
                         document.head.appendChild(styleEl);
                     }
-                    // also remove any existing label DOM nodes that may have been added earlier
                     try {
                         var nodes = document.querySelectorAll('.country-label, .country-label.offshore-label, .leaflet-country-tooltip');
                         if (nodes && nodes.length) {
@@ -81,7 +260,6 @@ window.mapInterop = {
                     } catch (e) { }
                 } catch (e) { }
             } else {
-                // If labels are enabled, ensure the stylesheet is removed if present
                 try {
                     var sid = document.getElementById('mapinterop-hide-country-labels');
                     if (sid) sid.parentNode.removeChild(sid);
@@ -89,7 +267,6 @@ window.mapInterop = {
             }
         } catch (e) { }
 
-        // If labels are disabled, ensure any pre-existing label markers/tooltips are removed
         try {
             if (!window.mapInterop._showCountryLabels) {
                 try {
@@ -106,7 +283,6 @@ window.mapInterop = {
                         }
                     }
                     window.mapInterop._labelConnectors = {};
-                    // Close any permanent tooltips bound to layers
                     if (window.mapInterop._layersById) {
                         for (var id in window.mapInterop._layersById) {
                             try { var lay = window.mapInterop._layersById[id]; if (lay && lay.closeTooltip) lay.closeTooltip(); } catch (e) { }
@@ -120,15 +296,26 @@ window.mapInterop = {
             .then(response => response.json())
             .then(data => {
                 var geoLayer = L.geoJSON(data, {
-                    // Start with features visually hidden (still interactive/clickable).
-                    // They will be revealed when setCountryConquered / setCountryConqueredAny is called.
-                    style: { color: "transparent", weight: 1, fillOpacity: 0, interactive: true },
+                    style: function() {
+                        console.log('mapInterop: setting initial style to', initialColor);
+                        setTimeout(function() {
+                            document.querySelectorAll('.leaflet-interactive').forEach(function(el) {
+                                el.setAttribute('fill', '#dc3545');
+                                el.setAttribute('stroke', '#dc3545');
+                                console.log('mapInterop: forced SVG fill/stroke to #dc3545', el);
+                            });
+                        }, 1000);
+                        return { color: '#dc3545', weight: 1, fillColor: '#dc3545', fillOpacity: 0.6, interactive: true };
+                    },
+                    pointToLayer: function(feature, latlng) {
+                        return L.marker(latlng, { icon: redIcon });
+                    },
                     onEachFeature: function (feature, layer) {
                         // store layer by id for later updates
                         try {
                             // Prefer feature.id (commonly ISO3 code) when available.
-                            // Fallback order: feature.id -> properties.iso_a3 -> properties.code -> properties.name
-                            var idKey = feature.id || (feature.properties && (feature.properties.iso_a3 || feature.properties.code || feature.properties.name)) || '';
+                            // Fallback order extended to cover administrative boundary datasets.
+                            var idKey = window.mapInterop._resolveId(feature);
                             if (idKey) {
                                 try {
                                     // store canonical key plus uppercase/lowercase variants to improve matching tolerance
@@ -145,7 +332,7 @@ window.mapInterop = {
 
                         layer.on('click', function () {
                             try {
-                                var id = feature.id || (feature.properties && (feature.properties.iso_a3 || feature.properties.code || feature.properties.name)) || '';
+                                var id = window.mapInterop._resolveId(feature);
                                 console.log('mapInterop: feature clicked, id=', id);
                                 if (dotNetRef && dotNetRef.invokeMethodAsync) {
                                     // invoke .NET callback
@@ -155,7 +342,7 @@ window.mapInterop = {
                                         console.error('mapInterop: .NET callback error', err);
                                     });
                                 } else {
-                                    alert("Country clicked: " + (feature.properties && feature.properties.name));
+                                    alert("Country clicked: " + window.mapInterop._resolveName(feature, id));
                                 }
                             } catch (e) {
                                 console.error('Error invoking .NET callback', e);
@@ -174,7 +361,7 @@ window.mapInterop = {
                     // Log summary of known layer keys for debugging
                     var keys = Object.keys(window.mapInterop._layersById || {});
                     console.log('mapInterop: loaded geo layer, known layer keys count=', keys.length, ' sample=', keys.slice(0, 12));
-                        // Zoom the map to a specific country feature identified by id (code or name).
+                    // Zoom the map to a specific country feature identified by id (code or name).
                 } catch (e) { }
                 // After loading geo layer, check for any pending continent zoom request stored in sessionStorage
                 try {
@@ -186,10 +373,10 @@ window.mapInterop = {
                     }
                 } catch (e) { }
             }).catch(function (err) { console.error('Failed to load geojson', err); });
-    }
+    },
 
     // Helper: compute centroid of the largest polygon part (works for Polygon and MultiPolygon)
-    , _getLargestPolygonCenter: function (layer, map) {
+    _getLargestPolygonCenter: function (layer, map) {
         try {
             if (!layer || !map) return null;
             if (!layer.getLatLngs) return null;
@@ -259,10 +446,10 @@ window.mapInterop = {
 
             return best.center || null;
         } catch (e) { return null; }
-    }
+    },
 
     // Helper: test whether a given LatLng is inside a layer's polygon(s)
-    , _pointInLayer: function (layer, latlng) {
+    _pointInLayer: function (layer, latlng) {
         try {
             if (!layer || !latlng) return false;
             var lat = latlng.lat !== undefined ? latlng.lat : (latlng[0] || null);
@@ -306,10 +493,10 @@ window.mapInterop = {
             }
             return false;
         } catch (e) { return false; }
-    }
+    },
 
     // Helper: when turf is available, compute an interior point on the largest polygon part of a layer's feature
-    , _getTurfInteriorPointForLargestPolygon: function (layer) {
+    _getTurfInteriorPointForLargestPolygon: function (layer) {
         try {
             if (!window.turf || !layer || !layer.feature) return null;
             // extract latlng rings similarly to _getLargestPolygonCenter
@@ -365,10 +552,10 @@ window.mapInterop = {
             }
         } catch (e) { }
         return null;
-    }
+    },
 
     // Helper: optionally place the label offshore with a connector if the polygon is narrow/elongated
-    , _maybePlaceOffshoreLabel: function (layer, id, name, center) {
+    _maybePlaceOffshoreLabel: function (layer, id, name, center, conquered) {
         try {
             var map = window.mapInterop._map;
             if (!map || !layer || !center) return null;
@@ -390,7 +577,7 @@ window.mapInterop = {
             var latlngs = layer.getLatLngs ? layer.getLatLngs() : null;
             if (!latlngs) {
                 // place normal marker
-                var m = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                var m = L.marker(center, { icon: conquered ? greenIcon : redIcon }).addTo(map);
                 window.mapInterop._labelMarkers[id] = m;
                 return m;
             }
@@ -419,7 +606,7 @@ window.mapInterop = {
                 } catch (e) { }
             }
             if (!isFinite(minX) || !isFinite(minY)) {
-                var m2 = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                var m2 = L.marker(center, { icon: conquered ? greenIcon : redIcon }).addTo(map);
                 window.mapInterop._labelMarkers[id] = m2;
                 return m2;
             }
@@ -435,8 +622,30 @@ window.mapInterop = {
             } catch (e) { }
 
             if (!shouldOffshore) {
-                var m3 = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                var m3 = L.marker(center, { icon: conquered ? greenIcon : redIcon }).addTo(map);
                 window.mapInterop._labelMarkers[id] = m3;
+                // Always show a permanent tooltip label above the green pin, force visibility
+                if (conquered && name) {
+                    console.log('DEBUG: Binding tooltip for green pin', id, name);
+                    m3.bindTooltip(name, {
+                        permanent: true,
+                        direction: 'top',
+                        className: 'country-label',
+                        opacity: 1,
+                        interactive: false
+                    }).openTooltip();
+                    // Force tooltip to show regardless of zoom
+                    var tooltip = m3.getTooltip();
+                    if (tooltip && tooltip._container) {
+                        tooltip._container.style.display = 'block';
+                        tooltip._container.style.opacity = '1';
+                        console.log('DEBUG: Tooltip container found and forced visible for', id, name);
+                    } else {
+                        console.warn('DEBUG: Tooltip container NOT found for', id, name);
+                    }
+                } else {
+                    console.warn('DEBUG: Not binding tooltip (conquered:', conquered, 'name:', name, ') for', id);
+                }
                 return m3;
             }
 
@@ -455,7 +664,7 @@ window.mapInterop = {
                     var angleDeg = (angleRad * 180 / Math.PI) + 90; // adjust arrow orientation
                     var arrowSpan = '<span style="display:inline-block; margin-left:8px; transform: rotate(' + angleDeg + 'deg); font-size:14px; color:#111;">&#9650;</span>';
                     var labelHtml = '<span class="label-text">' + (name || '') + '</span>' + arrowSpan;
-                    var offshoreMarker = L.marker(labelLatLng, { interactive: false, icon: L.divIcon({ className: 'country-label offshore-label', html: labelHtml, iconSize: null }) }).addTo(map);
+                    var offshoreMarker = L.marker(labelLatLng, { icon: conquered ? greenIcon : redIcon }).addTo(map);
                     window.mapInterop._labelMarkers[id] = offshoreMarker;
 
                     // draw connector line from polygon centroid to offshore label (no separate arrow marker)
@@ -469,32 +678,33 @@ window.mapInterop = {
                 }
             } catch (e) {
                 // fallback: normal marker
-                var fm = L.marker(center, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name, iconSize: null }) }).addTo(map);
+                var fm = L.marker(center, { icon: conquered ? greenIcon : redIcon }).addTo(map);
                 window.mapInterop._labelMarkers[id] = fm;
                 return fm;
             }
         } catch (e) { return null; }
-    }
+    },
 
-    , setCountryConquered: function (id, color) {
+    setCountryConquered: function (id, color) {
         try {
             var layer = window.mapInterop._layersById[id];
             if (layer) {
-                layer.setStyle({ color: '#222', weight: 1, fillColor: (color || '#ffcc00'), fillOpacity: 0.6 });
+                // If it's a marker (Kent towns), update its icon
+                if (layer instanceof L.Marker && layer.setIcon) {
+                    layer.setIcon(greenIcon);
+                    console.log('setIcon called for', id, layer, greenIcon);
+                } else if (layer.setStyle) {
+                    layer.setStyle({ color: '#222', weight: 1, fillColor: (color || '#ffcc00'), fillOpacity: 0.6 });
+                }
                 try {
-                    // Prefer human-readable name from feature properties; fallbacks for common keys
-                    var name = (layer.feature && layer.feature.properties && (layer.feature.properties.name || layer.feature.properties.NAME || layer.feature.properties.ADMIN || layer.feature.properties.admin)) || id;
-                    // Try to place a persistent label marker at the polygon centroid (or bounds center)
+                    var name = window.mapInterop._resolveName(layer ? layer.feature : null, id);
                     var map = window.mapInterop._map;
                     var center = null;
                     try {
-                        // Prefer a true interior point when turf is available (handles complex polygons)
                         if (window.turf && layer && layer.feature) {
                             try {
-                                // Prefer interior point on the largest polygon part (helps multi-part countries like Norway)
                                 var interior = window.mapInterop._getTurfInteriorPointForLargestPolygon(layer) || null;
                                 if (!interior) {
-                                    // fallback to pointOnFeature for the whole feature
                                     try {
                                         var whole = window.turf.pointOnFeature(layer.feature);
                                         if (whole && whole.geometry && whole.geometry.coordinates) {
@@ -506,11 +716,9 @@ window.mapInterop = {
                                 if (interior) center = interior;
                             } catch (e) { /* turf failed, fall through */ }
                         }
-                        // Fallback: centroid of largest polygon part
                         if (!center && map && layer && layer.getLatLngs) {
                             center = window.mapInterop._getLargestPolygonCenter(layer, map) || null;
                         }
-                        // Final fallback: bounds center or single LatLng
                         if (!center) {
                             if (layer.getBounds) center = layer.getBounds().getCenter();
                             else if (layer.getLatLng) center = layer.getLatLng();
@@ -518,23 +726,18 @@ window.mapInterop = {
                     } catch (e) { center = null; }
 
                     if (map && center) {
-                        // Only place persistent labels if allowed
                         try {
                             if (window.mapInterop._showCountryLabels) {
-                                // use offshore-aware placement helper which will remove any existing marker/connector
                                 window.mapInterop._maybePlaceOffshoreLabel(layer, id, name, center);
                             } else {
-                                // ensure any existing labels/connectors for this id are removed
                                 try { if (window.mapInterop._labelMarkers[id]) { map.removeLayer(window.mapInterop._labelMarkers[id]); delete window.mapInterop._labelMarkers[id]; } } catch (e) { }
                                 try { if (window.mapInterop._labelConnectors && window.mapInterop._labelConnectors[id]) { var obj = window.mapInterop._labelConnectors[id]; if (obj.line) try { map.removeLayer(obj.line); } catch (e) { } if (obj.arrow) try { map.removeLayer(obj.arrow); } catch (e) { } delete window.mapInterop._labelConnectors[id]; } } catch (e) { }
                             }
                         } catch (e) { /* fallback below */ }
                     } else {
-                        // fallback to permanent tooltip centered on the polygon (only if labels enabled)
                         if (window.mapInterop._showCountryLabels) {
                             if (layer.bindTooltip) layer.bindTooltip(name, { permanent: true, direction: 'center', className: 'country-label' }).openTooltip();
                         } else {
-                            // ensure any existing permanent tooltip is closed/removed
                             try { if (layer.closeTooltip) layer.closeTooltip(); } catch (e) { }
                         }
                     }
@@ -543,153 +746,67 @@ window.mapInterop = {
                 console.warn('mapInterop: no layer found for', id);
             }
         } catch (e) { console.error('mapInterop.setCountryConquered error', e); }
-    }
+    },
 
-    , setCountryConqueredAny: function (ids, colorOrColors) {
+    setCountryConqueredAny: function (ids, colorOrColors) {
         try {
             if (!ids) return null;
             var matched = [];
             var unmatched = [];
-            // Build a color map so retries can re-use the same per-id color when applicable
             var colorMap = {};
             var isArrayColors = Array.isArray(colorOrColors);
             for (var i = 0; i < ids.length; i++) {
                 var id = ids[i];
                 if (!id) continue;
-                // assign color for this id (either per-index or the single provided color)
-                try { colorMap[id] = (isArrayColors ? colorOrColors[i] : colorOrColors) || '#ffcc00'; } catch (e) { colorMap[id] = '#ffcc00'; }
+                try { colorMap[id] = (isArrayColors ? colorOrColors[i] : colorOrColors) || '#dc3545'; } catch (e) { colorMap[id] = '#dc3545'; }
                 console.log('mapInterop: trying to apply style for id', id, ' color=', colorMap[id]);
-                var layer = window.mapInterop._layersById[id] || window.mapInterop._layersById[(id || '').toUpperCase()] || window.mapInterop._layersById[(id || '').toLowerCase()];
-                if (layer) {
-                    layer.setStyle({ color: '#222', weight: 1, fillColor: (colorMap[id] || '#ffcc00'), fillOpacity: 0.6 });
-                    try {
-                        var name = (layer.feature && layer.feature.properties && (layer.feature.properties.name || layer.feature.properties.NAME || layer.feature.properties.ADMIN || layer.feature.properties.admin)) || id;
-                        var map = window.mapInterop._map;
-                        var center = null;
-                        try {
-                            // Prefer interior point on the largest polygon part when possible
-                            if (window.turf && layer && layer.feature) {
-                                try {
-                                    var interior2 = window.mapInterop._getTurfInteriorPointForLargestPolygon(layer) || null;
-                                    if (!interior2) {
-                                        try {
-                                            var whole2 = window.turf.pointOnFeature(layer.feature);
-                                            if (whole2 && whole2.geometry && whole2.geometry.coordinates) {
-                                                var wc2 = whole2.geometry.coordinates;
-                                                interior2 = L.latLng(wc2[1], wc2[0]);
-                                            }
-                                        } catch (e) { }
-                                    }
-                                    if (interior2) center = interior2;
-                                } catch (e) { }
-                            }
-                            if (!center && map && layer && layer.getLatLngs) {
-                                center = window.mapInterop._getLargestPolygonCenter(layer, map) || null;
-                            }
-                            if (!center) {
-                                if (layer.getBounds) center = layer.getBounds().getCenter();
-                                else if (layer.getLatLng) center = layer.getLatLng();
-                            }
-                        } catch (e) { center = null; }
-                        // ensure the chosen center actually lies inside the polygon; if not, fallback to bounds center
-                        try {
-                            if (map && center && layer && !window.mapInterop._pointInLayer(layer, center)) {
-                                // centroid landed outside (common for complex polygons); use bounds center if available
-                                if (layer.getBounds) center = layer.getBounds().getCenter();
-                                else if (layer.getLatLng) center = layer.getLatLng();
-                            }
-                        } catch (e) { }
-
-                        if (map && center) {
-                            try {
-                                if (window.mapInterop._showCountryLabels) window.mapInterop._maybePlaceOffshoreLabel(layer, id, name, center);
-                                else {
-                                    try { if (window.mapInterop._labelMarkers[id]) { map.removeLayer(window.mapInterop._labelMarkers[id]); delete window.mapInterop._labelMarkers[id]; } } catch (e) { }
-                                    try { if (window.mapInterop._labelConnectors && window.mapInterop._labelConnectors[id]) { var obj2 = window.mapInterop._labelConnectors[id]; if (obj2.line) try { map.removeLayer(obj2.line); } catch (e) { } if (obj2.arrow) try { map.removeLayer(obj2.arrow); } catch (e) { } delete window.mapInterop._labelConnectors[id]; } } catch (e) { }
-                                }
-                            } catch (e) { }
-                        } else {
-                            if (window.mapInterop._showCountryLabels) {
-                                if (layer.bindTooltip) layer.bindTooltip(name, { permanent: true, direction: 'center', className: 'country-label' }).openTooltip();
-                            } else {
-                                try { if (layer.closeTooltip) layer.closeTooltip(); } catch (e) { }
-                            }
-                        }
-                    } catch (e) { console.warn('mapInterop: failed to bind name tooltip', e); }
-                    console.log('mapInterop: conquered layer for', id, ' color=', colorMap[id]);
+                if (window.mapInterop._layersById[id]) {
                     matched.push(id);
+                    window.mapInterop.setCountryConquered(id, colorMap[id]);
                 } else {
                     unmatched.push(id);
                 }
             }
-            if (matched.length) {
-                console.log('mapInterop: matched ids', matched);
-            }
-            if (unmatched.length) {
-                console.warn('mapInterop: unmatched ids (first pass)', unmatched);
-                // try some heuristics immediately: trimmed and replace multiple spaces
-                var stillUnmatched = [];
-                for (var j = 0; j < unmatched.length; j++) {
-                    var orig = unmatched[j];
-                    var candidates = [orig, (orig || '').trim(), (orig || '').replace(/\s+/g, ' '), (orig || '').toUpperCase(), (orig || '').toLowerCase()];
-                    var found = false;
-                    for (var k = 0; k < candidates.length; k++) {
-                        var cand = candidates[k];
-                        var lay = window.mapInterop._layersById[cand];
-                        if (lay) { found = true; break; }
-                    }
-                    if (!found) stillUnmatched.push(orig);
-                }
-                if (stillUnmatched.length) {
-                    // schedule a retry after a short delay in case layers are registered slightly later
-                    setTimeout(function (toTry) {
-                        try {
-                            for (var ii = 0; ii < toTry.length; ii++) {
-                                var id2 = toTry[ii];
-                                var layer2 = window.mapInterop._layersById[id2] || window.mapInterop._layersById[(id2 || '').toUpperCase()] || window.mapInterop._layersById[(id2 || '').toLowerCase()];
-                                if (layer2) {
-                                    // re-apply style (use colorMap if available)
-                                    var c = (colorMap && colorMap[id2]) ? colorMap[id2] : (isArrayColors ? '#ffcc00' : colorOrColors || '#ffcc00');
-                                    layer2.setStyle({ color: '#222', weight: 1, fillColor: (c || '#ffcc00'), fillOpacity: 0.6 });
-                                    try {
-                                        var name2 = (layer2.feature && layer2.feature.properties && (layer2.feature.properties.name || layer2.feature.properties.NAME || layer2.feature.properties.ADMIN || layer2.feature.properties.admin)) || id2;
-                                        var map2 = window.mapInterop._map;
-                                        var center2 = null;
-                                        try { if (map2 && layer2 && layer2.getLatLngs) center2 = window.mapInterop._getLargestPolygonCenter(layer2, map2) || null; if (!center2) { if (layer2.getBounds) center2 = layer2.getBounds().getCenter(); else if (layer2.getLatLng) center2 = layer2.getLatLng(); } } catch (e) { center2 = null; }
-                                        if (map2 && center2) {
-                                            try { if (window.mapInterop._labelMarkers[id2]) { map2.removeLayer(window.mapInterop._labelMarkers[id2]); } } catch (e) { }
-                                            if (window.mapInterop._showCountryLabels) {
-                                                var marker2 = L.marker(center2, { interactive: false, icon: L.divIcon({ className: 'country-label', html: name2, iconSize: null }) }).addTo(map2);
-                                                window.mapInterop._labelMarkers[id2] = marker2;
-                                            } else {
-                                                // ensure any existing label marker is removed
-                                                try { if (window.mapInterop._labelMarkers[id2]) { map2.removeLayer(window.mapInterop._labelMarkers[id2]); delete window.mapInterop._labelMarkers[id2]; } } catch (e) { }
-                                            }
-                                        } else {
-                                            if (window.mapInterop._showCountryLabels) {
-                                                if (layer2.bindTooltip) layer2.bindTooltip(name2, { permanent: true, direction: 'center', className: 'country-label' }).openTooltip();
-                                            } else {
-                                                try { if (layer2.closeTooltip) layer2.closeTooltip(); } catch (e) { }
-                                            }
-                                        }
-                                    } catch (e) { console.warn('mapInterop: retry bind tooltip failed', e); }
-                                    console.log('mapInterop: retry applied for', id2, ' color=', (colorMap && colorMap[id2]) ? colorMap[id2] : colorOrColors);
-                                }
-                            }
-                        } catch (e) { console.error('mapInterop.retry error', e); }
-                    }, 250, stillUnmatched);
-                }
-            }
             return { matched: matched, unmatched: unmatched };
         } catch (e) { console.error('mapInterop.setCountryConqueredAny error', e); return null; }
-    }
+    },
+
+    setView: function (lat, lng, zoom, options) {
+        try {
+            var map = window.mapInterop._map;
+            if (!map) {
+                console.error('mapInterop.setView: map instance not found');
+                return false;
+            }
+            if (typeof lat !== 'number' || typeof lng !== 'number') {
+                console.error('mapInterop.setView: latitude and longitude must be numbers');
+                return false;
+            }
+            if (zoom === undefined || zoom === null) {
+                zoom = map.getZoom();
+            }
+            var opts = options || { animate: false };
+            map.setView([lat, lng], zoom, opts);
+            return true;
+        } catch (e) {
+            console.error('mapInterop.setView error', e);
+            return false;
+        }
+    },
 
     // Update label visibility depending on current zoom level
-    , _updateLabelVisibility: function () {
+    _updateLabelVisibility: function () {
         try {
             // if labels are globally disabled, ensure none are visible and return
             if (!window.mapInterop._showCountryLabels) {
-                try { var mm = window.mapInterop._map; if (mm) { for (var id in window.mapInterop._labelMarkers) { try { var m = window.mapInterop._labelMarkers[id]; if (m) mm.removeLayer(m); } catch (e) { } } } } catch (e) { }
+                try {
+                    var mm = window.mapInterop._map;
+                    if (mm) {
+                        for (var id in window.mapInterop._labelMarkers) {
+                            try { var m = window.mapInterop._labelMarkers[id]; if (m) mm.removeLayer(m); } catch (e) { }
+                        }
+                    }
+                } catch (e) { }
                 return;
             }
             var map = window.mapInterop._map;
@@ -697,15 +814,28 @@ window.mapInterop = {
             var z = map.getZoom ? map.getZoom() : 0;
             // threshold: hide labels below zoom 4 (you can tweak this)
             var visible = (z >= 4);
-            // toggle markers and connectors
+            // toggle markers
             try {
                 for (var id in window.mapInterop._labelMarkers) {
-                    try { var m = window.mapInterop._labelMarkers[id]; if (m) { if (visible) map.addLayer(m); else map.removeLayer(m); } } catch (e) { }
+                    try {
+                        var m = window.mapInterop._labelMarkers[id];
+                        if (m) {
+                            if (visible) map.addLayer(m);
+                            else map.removeLayer(m);
+                        }
+                    } catch (e) { }
                 }
             } catch (e) { }
+            // toggle connectors
             try {
                 for (var cid in window.mapInterop._labelConnectors) {
-                    try { var obj = window.mapInterop._labelConnectors[cid]; if (obj && obj.line) { if (visible) map.addLayer(obj.line); else map.removeLayer(obj.line); } } catch (e) { }
+                    try {
+                        var obj = window.mapInterop._labelConnectors[cid];
+                        if (obj && obj.line) {
+                            if (visible) map.addLayer(obj.line);
+                            else map.removeLayer(obj.line);
+                        }
+                    } catch (e) { }
                 }
             } catch (e) { }
             // when becoming visible, recompute positions to ensure offshore labels are placed correctly at the current zoom
@@ -713,18 +843,94 @@ window.mapInterop = {
                 try { window.mapInterop.recomputeLabels(); } catch (e) { }
             }
         } catch (e) { }
-    }
+    },
 
-    , focusElement: function (id) {
+    focusElement: function (id, select) {
         try {
-            if (!id) return;
+            if (!id) return false;
+
+            function isVisible(el) {
+                try {
+                    if (!el) return false;
+                    if (el.offsetParent === null) return false;
+                    var cs = window.getComputedStyle(el);
+                    if (!cs) return true;
+                    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+                    return true;
+                } catch (e) { return false; }
+            }
+
+            function doFocus(el) {
+                try {
+                    if (!el) return false;
+                    // ensure the element is visible and focusable
+                    if (!isVisible(el)) return false;
+                    // use requestAnimationFrame to avoid timing races
+                    window.requestAnimationFrame(function () {
+                        try {
+                            if (typeof el.focus === 'function') {
+                                el.focus({ preventScroll: false });
+                            } else if (el.focus) {
+                                el.focus();
+                            }
+                            if (select) {
+                                try {
+                                    if (typeof el.select === 'function') el.select();
+                                    else if (el.setSelectionRange && typeof el.value === 'string') el.setSelectionRange(0, el.value.length);
+                                } catch (e) { }
+                            }
+                        } catch (e) { }
+                    });
+                    return true;
+                } catch (e) { return false; }
+            }
+
             var el = document.getElementById(id);
-            if (el && el.focus) el.focus();
-        } catch (e) { console.error('mapInterop.focusElement error', e); }
-    }
+            if (el && doFocus(el)) return true;
+
+            // If element not present or not visible yet, observe the DOM for changes and focus when ready
+            var observer = null;
+            var timedOut = false;
+            var timeout = setTimeout(function () { timedOut = true; if (observer) observer.disconnect(); }, 2000);
+
+            observer = new MutationObserver(function (mutations) {
+                try {
+                    if (timedOut) return;
+                    var e = document.getElementById(id);
+                    if (e && isVisible(e)) {
+                        try { doFocus(e); } catch (ex) { }
+                        if (observer) observer.disconnect();
+                        clearTimeout(timeout);
+                    }
+                } catch (e) { }
+            });
+
+            try {
+                observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+            } catch (e) {
+                // If MutationObserver isn't supported or observation fails, fall back to polling
+                var attempts = 0;
+                var maxAttempts = 40; // ~2s
+                var tid = setInterval(function () {
+                    attempts++;
+                    try {
+                        var el2 = document.getElementById(id);
+                        if (el2 && doFocus(el2)) {
+                            clearInterval(tid);
+                            clearTimeout(timeout);
+                        } else if (attempts >= maxAttempts) {
+                            clearInterval(tid);
+                        }
+                    } catch (e) { clearInterval(tid); }
+                }, 50);
+            }
+
+            return true;
+        } catch (e) { console.error('mapInterop.focusElement error', e); return false; }
+    },
 
     // Clear all conquered styles and labels from the map
-    , clearConquered: function () {
+    clearConquered: function () {
         try {
             // reset style for all known layers
             for (var id in window.mapInterop._layersById) {
@@ -747,10 +953,27 @@ window.mapInterop = {
             }
             window.mapInterop._labelConnectors = {};
         } catch (e) { console.error('mapInterop.clearConquered error', e); }
-    }
+    },
+
+    // Show a Bootstrap modal by id (safe helper to avoid eval)
+    showBootstrapModal: function (id) {
+        try {
+            if (!id) return false;
+            var el = document.getElementById(id);
+            if (!el) return false;
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                try {
+                    var modal = new bootstrap.Modal(el);
+                    modal.show();
+                    return true;
+                } catch (e) { console.error('mapInterop.showBootstrapModal error', e); return false; }
+            }
+            return false;
+        } catch (e) { console.error('mapInterop.showBootstrapModal error', e); return false; }
+    },
 
     // Recompute all label positions based on current geometry and prefer turf interior points for multi-part features
-    , recomputeLabels: function () {
+    recomputeLabels: function () {
         try {
             // if labels disabled, nothing to recompute
             if (!window.mapInterop._showCountryLabels) return false;
@@ -771,7 +994,7 @@ window.mapInterop = {
                     try { var s = layer.options && layer.options.fillOpacity; styled = (typeof s === 'number' && s > 0); } catch (e) { }
                     if (!styled) continue;
 
-                    var name = (layer.feature && layer.feature.properties && (layer.feature.properties.name || layer.feature.properties.NAME || layer.feature.properties.ADMIN || layer.feature.properties.admin)) || id;
+                    var name = window.mapInterop._resolveName(layer ? layer.feature : null, id);
                     var newCenter = null;
                     try {
                         if (window.turf) {
@@ -808,10 +1031,10 @@ window.mapInterop = {
             }
             return true;
         } catch (e) { console.error('mapInterop.recomputeLabels error', e); return false; }
-    }
+    },
 
     // Zoom the map to a specific country feature identified by id (code or name).
-    , zoomToCountry: function (id) {
+    zoomToCountry: function (id) {
         try {
             if (!id || !window.mapInterop._map || !window.mapInterop._geoLayer) return false;
             // try direct lookup using stored keys
@@ -825,7 +1048,7 @@ window.mapInterop = {
                         var cand = keys[i];
                         var lay = window.mapInterop._layersById[cand];
                         if (!lay || !lay.feature || !lay.feature.properties) continue;
-                        var name = lay.feature.properties.name || lay.feature.properties.NAME || lay.feature.properties.ADMIN || lay.feature.properties.admin || '';
+                        var name = window.mapInterop._resolveName(lay ? lay.feature : null, id);
                         if (name && name.toString().toLowerCase() === id.toString().toLowerCase()) { layer = lay; break; }
                     }
                 } catch (e) { /* ignore */ }
@@ -878,11 +1101,11 @@ window.mapInterop = {
             }
             return false;
         } catch (e) { console.error('mapInterop.zoomToCountry error', e); return false; }
-    }
+    },
 
     // Zoom the map to the bounding box of all features matching the provided continent name.
     // Continent name should match a property on the features (we'll check properties.continent or properties.continent_na if present)
-    , zoomToContinent: function (continentName) {
+    zoomToContinent: function (continentName) {
         try {
             if (!window.mapInterop._geoLayer || !window.mapInterop._map || !continentName) return;
             var layer = window.mapInterop._geoLayer;

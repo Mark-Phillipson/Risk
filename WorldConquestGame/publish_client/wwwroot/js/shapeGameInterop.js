@@ -202,18 +202,31 @@ window.shapeGameInterop = {
     },
 
     clearMap: function() {
-        if (this._map) {
-            try {
-                if (this._currentLayer) {
-                    this._map.removeLayer(this._currentLayer);
-                    this._currentLayer = null;
-                }
-                // Reset to world view and invalidate size
-                this._map.setView([0, 0], 2);
-                try { this._map.invalidateSize(); } catch (e) { /* ignore */ }
-            } catch (e) {
-                console.warn('clearMap error:', e);
+        try {
+            // Remove any current country layer
+            if (this._map && this._currentLayer) {
+                try { this._map.removeLayer(this._currentLayer); } catch (e) { }
+                this._currentLayer = null;
             }
+            // If a tile layer was created, remove it
+            if (this._map && this._tileLayer) {
+                try { this._map.removeLayer(this._tileLayer); } catch (e) { }
+                this._tileLayer = null;
+            }
+
+            // Attempt a full disposal of the map so re-creating it later is safe
+            if (this._map) {
+                try { this._map.remove(); } catch (e) { /* ignore */ }
+                this._map = null;
+            }
+
+            // Hide the small prepare overlay if present (convention: elementId + '-overlay')
+            try {
+                var overlay = document.getElementById('shape-map-overlay');
+                if (overlay) overlay.style.display = 'none';
+            } catch (e) { }
+        } catch (e) {
+            console.warn('clearMap error:', e);
         }
     },
 
