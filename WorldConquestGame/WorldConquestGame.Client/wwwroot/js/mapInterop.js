@@ -863,6 +863,71 @@ window.mapInterop = {
         }
     },
 
+    // Set zoom level directly
+    setZoom: function (zoom) {
+        try {
+            var map = window.mapInterop._map;
+            if (!map) {
+                console.error('mapInterop.setZoom: map instance not found');
+                return false;
+            }
+            if (typeof zoom !== 'number') {
+                console.error('mapInterop.setZoom: zoom must be a number');
+                return false;
+            }
+            map.setZoom(zoom);
+            return true;
+        } catch (e) {
+            console.error('mapInterop.setZoom error', e);
+            return false;
+        }
+    },
+
+    // Get current zoom level
+    getZoom: function () {
+        try {
+            var map = window.mapInterop._map;
+            if (!map) {
+                console.error('mapInterop.getZoom: map instance not found');
+                return null;
+            }
+            return map.getZoom();
+        } catch (e) {
+            console.error('mapInterop.getZoom error', e);
+            return null;
+        }
+    },
+
+    // Get maximum zoom level
+    getMaxZoom: function () {
+        try {
+            var map = window.mapInterop._map;
+            if (!map) {
+                console.error('mapInterop.getMaxZoom: map instance not found');
+                return null;
+            }
+            return map.getMaxZoom();
+        } catch (e) {
+            console.error('mapInterop.getMaxZoom error', e);
+            return null;
+        }
+    },
+
+    // Get minimum zoom level
+    getMinZoom: function () {
+        try {
+            var map = window.mapInterop._map;
+            if (!map) {
+                console.error('mapInterop.getMinZoom: map instance not found');
+                return null;
+            }
+            return map.getMinZoom();
+        } catch (e) {
+            console.error('mapInterop.getMinZoom error', e);
+            return null;
+        }
+    },
+
     // Update label visibility depending on current zoom level
     _updateLabelVisibility: function () {
         try {

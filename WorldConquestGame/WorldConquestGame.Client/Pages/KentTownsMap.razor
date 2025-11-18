@@ -32,6 +32,18 @@
     </div>
     <div style="flex:1 1 auto;position:relative;">
         <div id="kent-town-map" class="map" style="height:100%;width:100%;position:relative;"></div>
+        
+        <!-- Zoom Control Dropdown -->
+        <div style="position:absolute;top:10px;right:10px;z-index:1000;background:white;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.3);padding:8px;">
+            <label style="margin:0;font-size:14px;font-weight:500;display:block;margin-bottom:4px;">Zoom Level:</label>
+            <select @bind="SelectedZoomLevel" @bind:after="OnZoomLevelChanged" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
+                @foreach (var zoomOption in ZoomOptions)
+                {
+                    <option value="@zoomOption.Value">@zoomOption.Label</option>
+                }
+            </select>
+        </div>
+        
     <WorldConquestGame.Client.Pages.KentTownQuestionPanel />
         <TownGuessModal IsOpen="@IsModalOpen" Title="Identify Town or Village" Question="What town or village is this?" CorrectAnswer="@ModalCorrectAnswer" OnSubmit="OnModalSubmit" OnClose="OnModalClose" />
     </div>
@@ -47,6 +59,48 @@
         private bool IsModalOpen = false;
         private string ModalCorrectAnswer = "";
         private string ModalPinId = "";
+
+    // Zoom control properties
+    private double SelectedZoomLevel = 9.0;
+    private List<ZoomOption> ZoomOptions = new();
+    
+    private class ZoomOption
+    {
+        public double Value { get; set; }
+        public string Label { get; set; } = "";
+    }
+
+    protected override void OnInitialized()
+    {
+        // Generate zoom options - create 10% increments from min to max
+        // Leaflet default zoom range is typically 0-18
+        double minZoom = 1.0;
+        double maxZoom = 18.0;
+        double range = maxZoom - minZoom;
+        
+        // Create 11 options (0%, 10%, 20%, ..., 100%)
+        for (int percentage = 0; percentage <= 100; percentage += 10)
+        {
+            double zoomValue = minZoom + (range * percentage / 100.0);
+            ZoomOptions.Add(new ZoomOption 
+            { 
+                Value = Math.Round(zoomValue, 1), 
+                Label = $"{percentage}% (Zoom {Math.Round(zoomValue, 1)})" 
+            });
+        }
+    }
+
+    private async Task OnZoomLevelChanged()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("mapInterop.setZoom", SelectedZoomLevel);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[KentTownsMap] Error setting zoom: {ex.Message}");
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -78,6 +132,9 @@
                     await Task.Delay(250);
                     await JS.InvokeAsync<bool>("mapInterop.setView", 51.2787, 0.5217, 9.0);
                 }
+                
+                // Set initial zoom level in dropdown
+                SelectedZoomLevel = 9.0;
             }
             catch(Exception exception) { 
                 Console.WriteLine($"[KentTownsMap] Exception setting map view: {exception}");
