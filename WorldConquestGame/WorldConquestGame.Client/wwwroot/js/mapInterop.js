@@ -928,6 +928,74 @@ window.mapInterop = {
         }
     },
 
+    // Pan the map up by a fixed amount
+    panUp: function () {
+        try {
+            var map = window.mapInterop._map;
+            if (!map) {
+                console.error('mapInterop.panUp: map instance not found');
+                return false;
+            }
+            var panAmount = 100; // pixels
+            map.panBy([0, -panAmount]);
+            return true;
+        } catch (e) {
+            console.error('mapInterop.panUp error', e);
+            return false;
+        }
+    },
+
+    // Pan the map down by a fixed amount
+    panDown: function () {
+        try {
+            var map = window.mapInterop._map;
+            if (!map) {
+                console.error('mapInterop.panDown: map instance not found');
+                return false;
+            }
+            var panAmount = 100; // pixels
+            map.panBy([0, panAmount]);
+            return true;
+        } catch (e) {
+            console.error('mapInterop.panDown error', e);
+            return false;
+        }
+    },
+
+    // Pan the map left by a fixed amount
+    panLeft: function () {
+        try {
+            var map = window.mapInterop._map;
+            if (!map) {
+                console.error('mapInterop.panLeft: map instance not found');
+                return false;
+            }
+            var panAmount = 100; // pixels
+            map.panBy([-panAmount, 0]);
+            return true;
+        } catch (e) {
+            console.error('mapInterop.panLeft error', e);
+            return false;
+        }
+    },
+
+    // Pan the map right by a fixed amount
+    panRight: function () {
+        try {
+            var map = window.mapInterop._map;
+            if (!map) {
+                console.error('mapInterop.panRight: map instance not found');
+                return false;
+            }
+            var panAmount = 100; // pixels
+            map.panBy([panAmount, 0]);
+            return true;
+        } catch (e) {
+            console.error('mapInterop.panRight error', e);
+            return false;
+        }
+    },
+
     // Update label visibility depending on current zoom level
     _updateLabelVisibility: function () {
         try {

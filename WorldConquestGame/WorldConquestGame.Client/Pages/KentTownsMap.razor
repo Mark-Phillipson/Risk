@@ -44,6 +44,29 @@
             </select>
         </div>
         
+        <!-- Pan Control Buttons -->
+        <div style="position:absolute;top:10px;right:240px;z-index:1000;background:white;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.3);padding:8px;">
+            <div style="display:grid;grid-template-columns:40px 40px 40px;grid-template-rows:40px 40px 40px;gap:4px;">
+                <div></div>
+                <button @onclick="PanUp" class="btn btn-sm btn-light" style="padding:4px;" title="Pan Up">
+                    <i class="bi bi-arrow-up" style="font-size:1.2rem;"></i>
+                </button>
+                <div></div>
+                <button @onclick="PanLeft" class="btn btn-sm btn-light" style="padding:4px;" title="Pan Left">
+                    <i class="bi bi-arrow-left" style="font-size:1.2rem;"></i>
+                </button>
+                <div></div>
+                <button @onclick="PanRight" class="btn btn-sm btn-light" style="padding:4px;" title="Pan Right">
+                    <i class="bi bi-arrow-right" style="font-size:1.2rem;"></i>
+                </button>
+                <div></div>
+                <button @onclick="PanDown" class="btn btn-sm btn-light" style="padding:4px;" title="Pan Down">
+                    <i class="bi bi-arrow-down" style="font-size:1.2rem;"></i>
+                </button>
+                <div></div>
+            </div>
+        </div>
+        
     <WorldConquestGame.Client.Pages.KentTownQuestionPanel />
         <TownGuessModal IsOpen="@IsModalOpen" Title="Identify Town or Village" Question="What town or village is this?" CorrectAnswer="@ModalCorrectAnswer" OnSubmit="OnModalSubmit" OnClose="OnModalClose" />
     </div>
@@ -99,6 +122,54 @@
         catch (Exception ex)
         {
             Console.WriteLine($"[KentTownsMap] Error setting zoom: {ex.Message}");
+        }
+    }
+
+    private async Task PanUp()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("mapInterop.panUp");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[KentTownsMap] Error panning up: {ex.Message}");
+        }
+    }
+
+    private async Task PanDown()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("mapInterop.panDown");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[KentTownsMap] Error panning down: {ex.Message}");
+        }
+    }
+
+    private async Task PanLeft()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("mapInterop.panLeft");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[KentTownsMap] Error panning left: {ex.Message}");
+        }
+    }
+
+    private async Task PanRight()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("mapInterop.panRight");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[KentTownsMap] Error panning right: {ex.Message}");
         }
     }
 
