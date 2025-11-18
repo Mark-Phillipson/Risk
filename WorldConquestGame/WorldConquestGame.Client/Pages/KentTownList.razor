@@ -21,7 +21,8 @@
         <ul class="town-list" style="list-style:none;padding-left:0;margin:0;overflow:auto;flex:1 1 auto;">
             @foreach (var town in Filtered.OrderBy(t => t.Name))
             {
-                <li class="town-list-item" @onclick="() => OnTownClicked(town)">
+                var townRef = _townRefs.ContainsKey(town.Name) ? _townRefs[town.Name] : default(ElementReference);
+                <li class="town-list-item" @onclick="(e) => OnTownClicked(town, e)" @ref="@townRef">
                     @if (town.IsConquered)
                     {
                         <span class="conquered">@town.Name</span>
@@ -31,6 +32,7 @@
                         <span>@town.Name</span>
                     }
                 </li>
+                _townRefs[town.Name] = townRef;
             }
         </ul>
     }
@@ -51,7 +53,7 @@
 
 @code {
     [Parameter]
-    public string Title { get; set; } = "Kent Towns & Villages";
+    public string Title { get; set; } = "Kent Places";
 
     private string _search = string.Empty;
 
@@ -81,7 +83,17 @@
         await Task.CompletedTask;
     }
 
-    private async Task OnTownClicked(CountryModel town)
+    private Dictionary<string, ElementReference> _townRefs = new();
+
+    private ElementReference GetTownRef(CountryModel town)
+    {
+        var key = town?.Name ?? "";
+        if (!_townRefs.ContainsKey(key))
+            _townRefs[key] = default;
+        return _townRefs[key];
+    }
+
+    private async Task OnTownClicked(CountryModel town, MouseEventArgs e)
     {
         if (town == null) return;
         try
@@ -90,6 +102,16 @@
             if (!string.IsNullOrWhiteSpace(id))
             {
                 await JS.InvokeVoidAsync("mapInterop.zoomToCountry", id);
+            }
+            // Copy town name to clipboard
+            if (!string.IsNullOrWhiteSpace(town.Name))
+            {
+                await JS.InvokeVoidAsync("navigator.clipboard.writeText", town.Name);
+                // Show 'Copied!' tooltip on the clicked list item
+                if (_townRefs.TryGetValue(town.Name, out var el))
+                {
+                    await JS.InvokeVoidAsync("mapInterop.showCopiedTooltip", el);
+                }
             }
         }
         catch { }
