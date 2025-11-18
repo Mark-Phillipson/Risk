@@ -50,6 +50,21 @@ window.mapInterop = {
                 setTimeout(function () { if (tooltip.parentNode) tooltip.parentNode.removeChild(tooltip); }, 400);
             }, 900);
         },
+        // Show a temporary tooltip by querying for an element by CSS selector
+        showCopiedTooltipBySelector: function (selector) {
+            console.log('[showCopiedTooltipBySelector] called with selector:', selector);
+            if (!selector) {
+                console.warn('[showCopiedTooltipBySelector] No selector passed');
+                return;
+            }
+            var element = document.querySelector(selector);
+            if (!element) {
+                console.warn('[showCopiedTooltipBySelector] Element not found for selector:', selector);
+                return;
+            }
+            // Call the original showCopiedTooltip with the found element
+            window.mapInterop.showCopiedTooltip(element);
+        },
     // Map UI region names to arrays of feature names in the data
     _kentRegionMap: {
         'south kent': ['maidstone', 'dover'],

@@ -16,6 +16,55 @@ var greenIcon = L.icon({
     shadowSize: [41, 41]
 });
 window.mapInterop = {
+    // Show a temporary tooltip near the clicked element
+    showCopiedTooltip: function (element) {
+        console.log('[showCopiedTooltip] called with:', element);
+        if (!element) {
+            console.warn('[showCopiedTooltip] No element passed');
+            return;
+        }
+        // Remove any existing tooltip
+        var oldTip = element.querySelector('.copied-tooltip');
+        if (oldTip) oldTip.remove();
+        var tooltip = document.createElement('span');
+        tooltip.className = 'copied-tooltip';
+        tooltip.textContent = 'Copied!';
+        tooltip.style.position = 'absolute';
+        tooltip.style.background = '#222';
+        tooltip.style.color = '#fff';
+        tooltip.style.padding = '2px 8px';
+        tooltip.style.borderRadius = '4px';
+        tooltip.style.fontSize = '13px';
+        tooltip.style.zIndex = '9999';
+        tooltip.style.top = '0';
+        tooltip.style.right = '0';
+        tooltip.style.transform = 'translateY(-100%)';
+        tooltip.style.pointerEvents = 'none';
+        tooltip.style.transition = 'opacity 0.3s';
+        tooltip.style.opacity = '1';
+        element.style.position = 'relative';
+        element.appendChild(tooltip);
+        console.log('[showCopiedTooltip] tooltip appended:', tooltip);
+        setTimeout(function () {
+            tooltip.style.opacity = '0';
+            setTimeout(function () { if (tooltip.parentNode) tooltip.parentNode.removeChild(tooltip); }, 400);
+        }, 900);
+    },
+    // Show a temporary tooltip by querying for an element by CSS selector
+    showCopiedTooltipBySelector: function (selector) {
+        console.log('[showCopiedTooltipBySelector] called with selector:', selector);
+        if (!selector) {
+            console.warn('[showCopiedTooltipBySelector] No selector passed');
+            return;
+        }
+        var element = document.querySelector(selector);
+        if (!element) {
+            console.warn('[showCopiedTooltipBySelector] Element not found for selector:', selector);
+            return;
+        }
+        // Call the original showCopiedTooltip with the found element
+        window.mapInterop.showCopiedTooltip(element);
+    },
     // Map UI region names to arrays of feature names in the data
     _kentRegionMap: {
         'south kent': ['maidstone', 'dover'],

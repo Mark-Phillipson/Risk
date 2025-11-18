@@ -21,8 +21,9 @@
         <ul class="town-list" style="list-style:none;padding-left:0;margin:0;overflow:auto;flex:1 1 auto;">
             @foreach (var town in Filtered.OrderBy(t => t.Name))
             {
-                var townRef = _townRefs.ContainsKey(town.Name) ? _townRefs[town.Name] : default(ElementReference);
-                <li class="town-list-item" @onclick="(e) => OnTownClicked(town, e)" @ref="@townRef">
+                var townName = town.Name;
+                var dataId = $"town-{townName?.Replace(" ", "-")}";
+                <li class="town-list-item" @onclick="(e) => OnTownClicked(town, e)" data-town-id="@dataId">
                     @if (town.IsConquered)
                     {
                         <span class="conquered">@town.Name</span>
@@ -32,7 +33,6 @@
                         <span>@town.Name</span>
                     }
                 </li>
-                _townRefs[town.Name] = townRef;
             }
         </ul>
     }
@@ -83,16 +83,6 @@
         await Task.CompletedTask;
     }
 
-    private Dictionary<string, ElementReference> _townRefs = new();
-
-    private ElementReference GetTownRef(CountryModel town)
-    {
-        var key = town?.Name ?? "";
-        if (!_townRefs.ContainsKey(key))
-            _townRefs[key] = default;
-        return _townRefs[key];
-    }
-
     private async Task OnTownClicked(CountryModel town, MouseEventArgs e)
     {
         if (town == null) return;
@@ -108,10 +98,8 @@
             {
                 await JS.InvokeVoidAsync("navigator.clipboard.writeText", town.Name);
                 // Show 'Copied!' tooltip on the clicked list item
-                if (_townRefs.TryGetValue(town.Name, out var el))
-                {
-                    await JS.InvokeVoidAsync("mapInterop.showCopiedTooltip", el);
-                }
+                var dataId = $"town-{town.Name?.Replace(" ", "-")}";
+                await JS.InvokeVoidAsync("mapInterop.showCopiedTooltipBySelector", $"[data-town-id='{dataId}']");
             }
         }
         catch { }
