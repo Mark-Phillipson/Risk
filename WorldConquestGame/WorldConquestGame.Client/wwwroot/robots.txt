@@ -1,0 +1,9 @@
+# robots.txt for World Conquest Game
+# Allow all crawlers; update the sitemap URL to your production domain.
+
+User-agent: *
+Allow: /
+
+# Sitemap points to the current staging app URL — update if you change domains
+Sitemap: https://victorious-dune-0afca7c03.1.azurestaticapps.net/sitemap.xml
+Sitemap: https://victorious-dune-0afca7c03.1.azurestaticapps.net/sitemap.xml.gz
